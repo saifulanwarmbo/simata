@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: employees
+    // Document ID: employeeId (string)
+    // Fields:
+    //   - id: string
+    //   - name: string
+    //   - nip: string
+    //   - jabatan: string
+    //   - pangkatGolongan: string
+    //   - pendidikan: string
+    //   - jurusan: string
+    //   - unitKerja: string
+    //   - email: string
+    //   - phone: string
+    //   - trainingAttended: string
+    //   - avatar: string
+    //   - eselon: string
+    //   - performance: number
+    //   - potential: number
+    //   - competency: number
+    //   - skills: list
+    //   - criticalPosition: string
+    //   - developmentPlan: string
+    //   - birthDate: string
+    //   - successionStatus: string
+    //   - submissionType: string
+    //   - status: string
+    //
+    // Collection: criticalJobs
+    // Document ID: jobId (string)
+    // Fields:
+    //   - id: string
+    //   - title: string
+    //   - unitKerja: string
+    //   - description: string
+    //   - requiredEselon: string
+    //   - requiredEducation: list
+    // ===============================================================
+
+    function isAuthenticated() {
+       return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "saiful.anwarmbo@gmail.com" && request.auth.token.email_verified == true)
+        );
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow create, read: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /criticalJobs/{jobId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

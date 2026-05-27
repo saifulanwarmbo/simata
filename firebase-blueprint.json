@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Data talenta ASN",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "nip": { "type": "string" },
+        "jabatan": { "type": "string" },
+        "pangkatGolongan": { "type": "string" },
+        "pendidikan": { "type": "string" },
+        "jurusan": { "type": "string" },
+        "unitKerja": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "trainingAttended": { "type": "string" },
+        "avatar": { "type": "string" },
+        "eselon": { "type": "string" },
+        "performance": { "type": "number" },
+        "potential": { "type": "number" },
+        "competency": { "type": "number" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "criticalPosition": { "type": "string" },
+        "developmentPlan": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "successionStatus": { "type": "string" },
+        "submissionType": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "CriticalJob": {
+      "title": "CriticalJob",
+      "description": "Jabatan kritikal target suksesi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "unitKerja": { "type": "string" },
+        "description": { "type": "string" },
+        "requiredEselon": { "type": "string" },
+        "requiredEducation": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Koleksi data pegawai"
+    },
+    "/criticalJobs/{jobId}": {
+      "schema": { "$ref": "#/entities/CriticalJob" },
+      "description": "Koleksi jabatan kritikal"
+    }
+  }
+}
