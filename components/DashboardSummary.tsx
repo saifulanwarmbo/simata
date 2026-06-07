@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { Employee, CriticalJob } from '../types';
 import { getEmployeeBoxInfo, isApproachingRetirement } from '../utils/talentUtils';
 import { UsersIcon, StarIcon, BriefcaseIcon, WarningIcon, ArrowRightIcon } from './icons';
+import DashboardCharts from './DashboardCharts';
 
 interface StatCardProps {
     icon: React.ReactElement<React.SVGProps<SVGSVGElement>>;
@@ -179,10 +180,12 @@ const DashboardSummary: React.FC<DashboardSummaryProps> = ({ employees, critical
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard icon={<UsersIcon />} label="Total Talenta Disetujui" value={summary.totalEmployees} color="#3b82f6" />
-                <StatCard icon={<BriefcaseIcon />} label="Jabatan Kritikal" value={summary.totalCriticalJobs} color="#a855f7" />
+                <StatCard icon={<BriefcaseIcon />} label="Jabatan Lowong/Kritikal" value={summary.totalCriticalJobs} color="#a855f7" />
                 <StatCard icon={<WarningIcon />} label="Akan Pensiun (<1 Thn)" value={summary.approachingRetirementCount} color="#f59e0b" />
                 <StatCard icon={<StarIcon />} label="Kandidat Siap Sekarang" value={summary.readyNowCount} color="#10b981" />
             </div>
+
+            <DashboardCharts employees={employees} />
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                  <div className="lg:col-span-3 space-y-6">

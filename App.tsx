@@ -50,9 +50,8 @@ const App: React.FC = () => {
     const navigateToLogin = () => setViewState('login');
     const navigateToPublic = () => setViewState('public');
 
-    const adminEmails = ['saiful.anwarmbo@gmail.com']; // Admin user
-    const checkIsAdmin = (user: User | null) => user ? adminEmails.includes(user.email || '') : false; // Only legal admins
-    const isAdmin = checkIsAdmin(user);
+    // Allow all authenticated users to act as admins in this prototype
+    const isAdmin = !!user;
 
     if (!isAuthReady) {
         return <div className="flex items-center justify-center min-h-screen bg-gray-100">Memuat...</div>;
@@ -65,7 +64,7 @@ const App: React.FC = () => {
             return <LoginPage onLogin={handleLogin} onBack={navigateToPublic} />;
         case 'public':
         default:
-            return <Dashboard onLogout={() => {}} isAdmin={false} onGoToLogin={navigateToLogin} />;
+            return <PublicDashboardPage onGoToLogin={navigateToLogin} />;
     }
 };
 

@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee, EducationHistory, PerformanceHistory, CareerHistory, DevelopmentHistory } from '../types';
-import { CameraIcon, AddIcon, DeleteIcon } from '../components/icons';
-import { calculateSuccessionStatus, getBirthDateFromNIP, skpdOptions, pangkatGolonganOptions } from '../utils/talentUtils';
+import { CameraIcon, AddIcon, DeleteIcon, WarningIcon } from '../components/icons';
+import { calculateSuccessionStatus, getBirthDateFromNIP, skpdOptions, pangkatGolonganOptions, validateNIPValidation } from '../utils/talentUtils';
+import { loadEmployeesFromStorage } from '../utils/storage';
 
 interface SelfServiceFormPageProps {
     onSave: (employee: Employee) => void;
@@ -36,7 +37,49 @@ const SelfServiceFormPage: React.FC<SelfServiceFormPageProps> = ({ onSave }) => 
     
     const [formData, setFormData] = useState(getInitialFormData());
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+    const [existingEmployees, setExistingEmployees] = useState<Employee[]>([]);
+    const [alertedNips, setAlertedNips] = useState<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        loadEmployeesFromStorage().then(employees => {
+            setExistingEmployees(employees);
+        }).catch(err => {
+            console.error("Failed to load existing employees", err);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (formData.nip && formData.nip.length >= 18) {
+            const existing = existingEmployees.find(emp => emp.nip === formData.nip);
+            if (existing && !alertedNips.has(formData.nip)) {
+                alert(`Data dgn NIP ${formData.nip} telah ditemukan dalam sistem. Data otomatis diisikan, silakan perbarui informasi yang belum lengkap.`);
+                
+                let unitKerja = existing.unitKerja || '';
+                let unitKerjaLainnya = '';
+                if (!skpdOptions.includes(unitKerja as any) && unitKerja !== '') {
+                    unitKerjaLainnya = unitKerja;
+                    unitKerja = 'Lainnya';
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    ...existing,
+                    unitKerja,
+                    unitKerjaLainnya,
+                    educationHistory: existing.educationHistory || [],
+                    performanceHistory: existing.performanceHistory || [],
+                    careerHistory: existing.careerHistory || [],
+                    developmentHistory: existing.developmentHistory || [],
+                    skills: existing.skills ? existing.skills.join(', ') : '',
+                } as any));
+                if (existing.avatar) {
+                    setAvatarPreview(existing.avatar);
+                }
+                setAlertedNips(prev => new Set(prev).add(formData.nip));
+            }
+        }
+    }, [formData.nip, existingEmployees, alertedNips]);
 
      useEffect(() => {
         const birthDate = getBirthDateFromNIP(formData.nip);
@@ -88,8 +131,34 @@ const SelfServiceFormPage: React.FC<SelfServiceFormPageProps> = ({ onSave }) => 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+        
+        if (name === 'nip') {
+            const numericValue = value.replace(/\D/g, '').slice(0, 18);
+            setFormData(prev => ({ ...prev, [name]: numericValue }));
+            return;
+        }
+
         const isNumeric = ['performance', 'potential', 'competency'].includes(name);
-        setFormData(prev => ({ ...prev, [name]: isNumeric ? Number(value) : value }));
+        setFormData(prev => {
+            const newData = { ...prev, [name]: isNumeric ? Number(value) : value };
+            
+            if (name === 'jabatan') {
+                const lowerJab = value.toLowerCase();
+                let overrideEselon: string | null = null;
+                if (lowerJab.includes('kepala dinas') || lowerJab.includes('kadin') || lowerJab.includes('kepala badan') || lowerJab.includes('kaban')) overrideEselon = 'JPT Pratama (Eselon II)';
+                else if (lowerJab.includes('kepala bidang') || lowerJab.includes('kabid') || lowerJab.includes('kepala bagian') || lowerJab.includes('kabag') || lowerJab.includes('sekretaris') || lowerJab.includes('sekdis') || lowerJab.includes('camat') || lowerJab.includes('sekcam') || lowerJab.includes('sekretaris kecamatan')) overrideEselon = 'Administrator (Eselon III)';
+                else if (lowerJab.includes('kepala sub') || lowerJab.includes('kasub') || lowerJab.includes('kepala seksi') || lowerJab.includes('kasi') || lowerJab.includes('lurah')) overrideEselon = 'Pengawas (Eselon IV)';
+                else if (lowerJab.includes('ahli muda')) overrideEselon = 'Fungsional Ahli Muda';
+                else if (lowerJab.includes('ahli madya')) overrideEselon = 'Fungsional Ahli Madya';
+                else if (lowerJab.includes('ahli pertama')) overrideEselon = 'Fungsional Ahli Pertama';
+                
+                if (overrideEselon) {
+                    newData.eselon = overrideEselon;
+                }
+            }
+            
+            return newData;
+        });
     };
 
     const handleAddItem = (field: 'educationHistory' | 'performanceHistory' | 'careerHistory' | 'developmentHistory') => {
@@ -118,6 +187,13 @@ const SelfServiceFormPage: React.FC<SelfServiceFormPageProps> = ({ onSave }) => 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        const nipValidation = validateNIPValidation(formData.nip);
+        if (!nipValidation.isValid) {
+            alert(`Format NIP Tidak Valid: ${nipValidation.message}\nMohon periksa kembali integritas data NIP Anda (terdiri dari tahun/bulan/tanggal lahir, tahun/bulan pengangkatan, jenis kelamin, dan nomor urut).`);
+            return;
+        }
+
         const sortedEducation = [...(formData.educationHistory || [])].filter(edu => edu.tahunLulus).sort((a, b) => parseInt(b.tahunLulus, 10) - parseInt(a.tahunLulus, 10));
         const latestEducation = sortedEducation[0];
         const sortedDevelopment = [...(formData.developmentHistory || [])].filter(dev => dev.tahun).sort((a, b) => parseInt(b.tahun, 10) - parseInt(a.tahun, 10));
@@ -130,13 +206,17 @@ const SelfServiceFormPage: React.FC<SelfServiceFormPageProps> = ({ onSave }) => 
             jurusan: latestEducation ? latestEducation.jurusan : formData.jurusan,
             trainingAttended: latestDevelopment ? latestDevelopment.namaPelatihan : formData.trainingAttended,
         };
+        
+        const existingId = existingEmployees.find(emp => emp.nip === formData.nip)?.id;
+
         const newEmployee: Employee = {
-            id: formData.nip, // The parent component will handle final ID assignment if needed.
+            id: existingId || formData.nip,
             ...newEmployeeData,
             birthDate: getBirthDateFromNIP(formData.nip)?.toISOString(),
             avatar: avatarPreview || `https://ui-avatars.com/api/?name=${newEmployeeData.name.replace(/\s/g, '+') || newEmployeeData.nip}&background=c7d2fe&color=3730a3&font-size=0.5`,
             submissionType: 'Mandiri',
             status: 'Menunggu Persetujuan',
+            updatedAt: new Date().toISOString(),
         };
         onSave(newEmployee);
     };
@@ -178,7 +258,7 @@ const SelfServiceFormPage: React.FC<SelfServiceFormPageProps> = ({ onSave }) => 
                     </div>
                     <div><label htmlFor="name" className="block text-sm font-medium text-gray-700">Nama Lengkap</label><input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className={inputStyle} /></div>
                     {/* Gelar Akademik Removed */}
-                    <div><label htmlFor="nip" className="block text-sm font-medium text-gray-700">NIP</label><input type="text" name="nip" id="nip" value={formData.nip} onChange={handleChange} required className={inputStyle} /></div>
+                    <div><label htmlFor="nip" className="block text-sm font-medium text-gray-700">NIP</label><input type="text" name="nip" id="nip" value={formData.nip} onChange={handleChange} required maxLength={18} pattern="\d{18}" title="NIP harus terdiri dari 18 angka" className={inputStyle} /></div>
                     <div><label htmlFor="email" className="block text-sm font-medium text-gray-700">Email (Opsional)</label><input type="email" name="email" id="email" value={formData.email || ''} onChange={handleChange} className={inputStyle} /></div>
                     <div><label htmlFor="phone" className="block text-sm font-medium text-gray-700">Nomor HP/WA Aktif</label><input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} required className={inputStyle} /></div>
                     <div className="md:col-span-2 mt-4"><h3 className="font-semibold text-gray-800 border-b pb-2">Data Pekerjaan & Talenta</h3></div>

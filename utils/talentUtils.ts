@@ -162,6 +162,20 @@ export const getEmployeeBoxInfo = (employee: Employee) => {
     return { boxNumber, category, recommendation };
 };
 
+export const getTalentStatusPermenpan = (boxNumber: number): string => {
+    // Sesuai PermenPANRB No. 3 Tahun 2020
+    if ([7, 8, 9].includes(boxNumber)) {
+        return 'Ready Now';
+    } else if ([5, 6].includes(boxNumber)) {
+        return 'Potensial';
+    } else if ([2, 3, 4].includes(boxNumber)) {
+        return 'Development Needed';
+    } else if (boxNumber === 1) {
+        return 'Underperformer';
+    }
+    return 'Belum Terpetakan';
+};
+
 /**
  * Determines the succession status based on performance, potential, and retirement status.
  * @param employee The employee object (or a partial object with relevant fields).
@@ -361,6 +375,81 @@ export const findPotentialCandidates = (
 };
 
 /**
+ * Validates the structure and semantic rules of an 18-digit NIP.
+ * NIP Format: YYYYMMDD YYYYMM C NNN
+ * - YYYYMMDD: Birth date (C determines female encoding where day is +40)
+ * - YYYYMM: Appointment year and month
+ * - C: Sex (1 for male, 2 for female)
+ * - NNN: sequence number (001-999)
+ * @param nip The NIP string to validate.
+ * @returns An object with { isValid: boolean, message: string }
+ */
+export const validateNIPValidation = (nip: string): { isValid: boolean; message: string } => {
+    if (!nip) return { isValid: false, message: 'NIP tidak boleh kosong.' };
+    
+    // Must be exactly 18 digits
+    if (!/^\d{18}$/.test(nip)) {
+        return { isValid: false, message: 'NIP harus terdiri dari tepat 18 angka.' };
+    }
+
+    const yearStr = nip.substring(0, 4);
+    const monthStr = nip.substring(4, 6);
+    const dayStr = nip.substring(6, 8);
+    
+    const appYearStr = nip.substring(8, 12);
+    const appMonthStr = nip.substring(12, 14);
+    
+    const sexStr = nip.charAt(14);
+    const seqStr = nip.substring(15, 18);
+
+    // 1. Validate Gender
+    if (sexStr !== '1' && sexStr !== '2') {
+        return { isValid: false, message: 'Digit ke-15 harus angka 1 (Pria) atau 2 (Wanita).' };
+    }
+
+    // 2. Validate Birth Date
+    let birthYear = parseInt(yearStr, 10);
+    let birthMonth = parseInt(monthStr, 10);
+    let birthDay = parseInt(dayStr, 10);
+
+    // Female correction for older formats or just typical BKN encoding 
+    // Technically standard NIP doesn't add +40 to day for women anymore in some regs, but historically it did or does for NIK. Wait, actually NIP doesn't add 40. But let's check what `getBirthDateFromNIP` did.
+    // It currently assumes women have +40. Let's keep consistency.
+    let actualBirthDay = birthDay;
+    if (birthDay > 40) {
+        actualBirthDay -= 40;
+    }
+
+    if (birthYear < 1900 || birthYear > new Date().getFullYear() - 15) {
+        return { isValid: false, message: 'Tahun lahir pada NIP tidak masuk akal.' };
+    }
+    if (birthMonth < 1 || birthMonth > 12) {
+        return { isValid: false, message: 'Bulan lahir pada NIP (digit 5-6) tidak valid.' };
+    }
+    if (actualBirthDay < 1 || actualBirthDay > 31) {
+        return { isValid: false, message: 'Tanggal lahir pada NIP (digit 7-8) tidak valid.' };
+    }
+
+    // 3. Validate Appointment Date
+    let appYear = parseInt(appYearStr, 10);
+    let appMonth = parseInt(appMonthStr, 10);
+
+    if (appYear < birthYear + 15) {
+        return { isValid: false, message: 'Tahun pengangkatan terlalu dekat/sebelum tahun lahir (minimal usia 15 tahun).' };
+    }
+    if (appMonth < 1 || appMonth > 12) {
+        return { isValid: false, message: 'Bulan pengangkatan pada NIP (digit 13-14) tidak valid.' };
+    }
+
+    // 4. Validate sequence
+    if (seqStr === '000') {
+        return { isValid: false, message: 'Tiga digit terakhir (16-18) tidak boleh 000.' };
+    }
+
+    return { isValid: true, message: 'NIP valid.' };
+};
+
+/**
  * Parses an 18-digit Indonesian NIP to extract the birth date.
  * It considers the gender encoding where the birth day is incremented by 40 for females.
  * @param nip The 18-digit NIP string.
@@ -410,7 +499,12 @@ export const getBirthDateFromNIP = (nip: string): Date | null => {
  * @returns True if the employee is approaching retirement, otherwise false.
  */
 export const isApproachingRetirement = (employee: Employee): boolean => {
-    if (!employee.birthDate) {
+    let birthDateStr = employee.birthDate;
+    if (!birthDateStr && employee.nip) {
+        const parsedNodeDate = getBirthDateFromNIP(employee.nip);
+        if (parsedNodeDate) birthDateStr = parsedNodeDate.toISOString();
+    }
+    if (!birthDateStr) {
         return false;
     }
 
@@ -432,7 +526,7 @@ export const isApproachingRetirement = (employee: Employee): boolean => {
     }
 
     try {
-        const birthDate = new Date(employee.birthDate);
+        const birthDate = new Date(birthDateStr);
         if (isNaN(birthDate.getTime())) {
             return false;
         }
@@ -459,7 +553,12 @@ export const isApproachingRetirement = (employee: Employee): boolean => {
  * @returns True if the employee is over retirement age, otherwise false.
  */
 export const isOverRetirementAge = (employee: Employee): boolean => {
-    if (!employee.birthDate) {
+    let birthDateStr = employee.birthDate;
+    if (!birthDateStr && employee.nip) {
+        const parsedNodeDate = getBirthDateFromNIP(employee.nip);
+        if (parsedNodeDate) birthDateStr = parsedNodeDate.toISOString();
+    }
+    if (!birthDateStr) {
         return false;
     }
 
@@ -481,7 +580,7 @@ export const isOverRetirementAge = (employee: Employee): boolean => {
     }
 
     try {
-        const birthDate = new Date(employee.birthDate);
+        const birthDate = new Date(birthDateStr);
         if (isNaN(birthDate.getTime())) {
             return false;
         }
@@ -494,6 +593,79 @@ export const isOverRetirementAge = (employee: Employee): boolean => {
     } catch (e) {
         console.error("Error calculating retirement status:", e);
         return false;
+    }
+};
+
+/**
+ * Calculates string representing remaining time until retirement.
+ * @param employee The employee object
+ * @returns Formatted string or null
+ */
+export const getRemainingRetirementTime = (employee: Employee): string | null => {
+    let birthDateStr = employee.birthDate;
+    if (!birthDateStr && employee.nip) {
+        const parsedNodeDate = getBirthDateFromNIP(employee.nip);
+        if (parsedNodeDate) birthDateStr = parsedNodeDate.toISOString();
+    }
+    if (!birthDateStr) {
+        return null;
+    }
+
+    let retirementAge: number;
+    const eselon = employee.eselon;
+
+    if (eselon.includes('Fungsional Ahli Utama')) {
+        retirementAge = 65;
+    } else if (
+        eselon.includes('JPT Utama') ||
+        eselon.includes('JPT Madya') ||
+        eselon.includes('JPT Pratama') || // Eselon I & II
+        eselon.includes('Fungsional Ahli Madya')
+    ) {
+        retirementAge = 60;
+    } else {
+        retirementAge = 58;
+    }
+
+    try {
+        const birthDate = new Date(birthDateStr);
+        if (isNaN(birthDate.getTime())) return null;
+
+        const retirementDate = new Date(birthDate.getFullYear() + retirementAge, birthDate.getMonth(), birthDate.getDate());
+        const now = new Date();
+
+        if (retirementDate <= now) {
+            return "Telah Pensiun";
+        }
+
+        let years = retirementDate.getFullYear() - now.getFullYear();
+        let months = retirementDate.getMonth() - now.getMonth();
+
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        
+        // Adjust for days
+        if (now.getDate() > retirementDate.getDate()) {
+             months--;
+             if (months < 0) {
+                 years--;
+                 months += 12;
+             }
+        }
+
+        if (years === 0 && months === 0) {
+            return "Pensiun bulan ini";
+        }
+
+        let result = "Pensiun dalam ";
+        if (years > 0) result += `${years} tahun `;
+        if (months > 0) result += `${months} bulan`;
+
+        return result.trim();
+    } catch (e) {
+        return null;
     }
 };
 

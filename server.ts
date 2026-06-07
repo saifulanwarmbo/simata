@@ -35,15 +35,33 @@ async function startServer() {
   // Helper for Gemini requests
   const generateContentWithRetry = async (params: any, retries = 3) => {
     let lastError = null;
+    let currentModel = params.model;
     for (let i = 0; i < retries; i++) {
       try {
         if (!ai) throw new Error("Gemini AI client is not available.");
-        return await ai.models.generateContent(params);
+        const startTime = Date.now();
+        console.log(`[Gemini] Requesting model ${currentModel}...`);
+        const response = await ai.models.generateContent({ ...params, model: currentModel });
+        console.log(`[Gemini] Response received in ${Date.now() - startTime}ms`);
+        return response;
       } catch (err: any) {
         lastError = err;
-        if (err.message && (err.message.includes("503") || err.message.includes("high demand") || err.message.includes("exceeded"))) {
-          console.log(`Model ${params.model} busy or hitting limit. Retrying (${i + 1}/${retries})...`);
-          await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+        let errMsg = String(err);
+        try {
+            errMsg = typeof err === 'object' ? JSON.stringify(err, Object.getOwnPropertyNames(err)) : String(err);
+        } catch(e) {
+            errMsg = err.message || String(err);
+        }
+        console.error(`[Gemini] Attempt ${i + 1} failed for ${currentModel}: ${errMsg}`);
+        if (errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("exceeded") || errMsg.includes("UNAVAILABLE") || errMsg.includes("429")) {
+          if (i === 0) {
+              console.log("Falling back to gemini-3-flash-preview...");
+              currentModel = "gemini-3-flash-preview";
+          } else if (i === 1) {
+              console.log("Falling back to gemini-2.5-flash...");
+              currentModel = "gemini-2.5-flash";
+          }
+          await new Promise(r => setTimeout(r, 2500 * (i + 1)));
           continue;
         }
         break;
@@ -64,8 +82,8 @@ async function startServer() {
       });
       res.json({ text: response.text });
     } catch (error: any) {
-      console.error("Gemini API Error:", error.message);
-      res.status(500).json({ message: "Error generating content from Gemini", error: error.message });
+      console.error("Gemini API Error:", error?.message || error);
+      res.status(500).json({ message: "Error generating content from Gemini", error: error?.message || String(error) });
     }
   };
 
@@ -88,7 +106,7 @@ async function startServer() {
     
     Pastikan bahasa yang digunakan formal, sesuai untuk analisis jabatan dan tata naskah dinas di lingkungan pemerintahan Indonesia.
     `;
-    handleGeminiRequest(res, "gemini-3-flash-preview", prompt, { temperature: 0.5, topP: 0.95 });
+    handleGeminiRequest(res, "gemini-2.5-flash", prompt, { temperature: 0.5, topP: 0.95 });
   });
 
   app.post('/api/generate/development-plan', (req, res) => {
@@ -137,11 +155,11 @@ async function startServer() {
 
     Pastikan outputnya adalah string HTML yang siap pakai. Jangan sertakan \`\`\`html di awal atau akhir. Nada tulisan harus konstruktif dan selaras dengan semangat pengembangan SDM Unggul.
     `;
-    handleGeminiRequest(res, "gemini-3-flash-preview", prompt, { temperature: 0.6, topP: 0.95 });
+    handleGeminiRequest(res, "gemini-2.5-flash", prompt, { temperature: 0.6, topP: 0.95 });
   });
 
   app.post('/api/generate/talent-pool-analysis', (req, res) => {
-    const { employees } = req.body;
+    const { employees = [] } = req.body;
     const boxSummary: any = {}; for (let i = 1; i <= 9; i++) { boxSummary[i] = { count: 0, employees: [] }; }
     employees.forEach((e: any) => {
         const { boxNumber } = getEmployeeBoxInfo(e);
@@ -173,7 +191,7 @@ async function startServer() {
         - <strong>Strategi Intervensi Kinerja</strong>: Usulkan implementasi 'Performance Improvement Plan (PIP)', 'Coaching & Konseling Kinerja', dan evaluasi 'job-fit'.
     Gunakan tag HTML seperti <h3>, <p>, <ul>, <li>, dan <strong>.
     `;
-    handleGeminiRequest(res, "gemini-3-flash-preview", prompt, { temperature: 0.7, topP: 0.95 });
+    handleGeminiRequest(res, "gemini-2.5-flash", prompt, { temperature: 0.7, topP: 0.95 });
   });
 
   app.post('/api/generate/employee-data', async (req, res) => {
@@ -205,7 +223,7 @@ async function startServer() {
             required: ["name", "nip", "pangkatGolongan", "pendidikan", "jurusan", "phone", "eselon", "skills", "criticalPosition"]
         };
         const response = await generateContentWithRetry({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -221,9 +239,9 @@ async function startServer() {
   });
 
   app.post('/api/generate/succession-insight', async (req, res) => {
-    const { job, candidates } = req.body;
+    const { job, candidates = [] } = req.body;
     if (candidates.length === 0) {
-        const noCandidateHtml = `<h3>Analisis Strategis Suksesi untuk \${job.title}</h3><p><strong>Peringatan Kritis:</strong> Saat ini tidak ada kandidat internal yang teridentifikasi untuk mengisi jabatan kritikal ini. Hal ini menciptakan risiko keberlanjutan kepemimpinan yang signifikan pada \${job.unitKerja}.</p><h4>Rekomendasi Aksi Segera:</h4><ul><li><strong>Identifikasi Eksternal:</strong> Segera mulai proses identifikasi kandidat potensial dari luar instansi.</li><li><strong>Review Kriteria:</strong> Lakukan peninjauan ulang terhadap kriteria jabatan dan data talenta di SKPD terkait.</li><li><strong>Pengembangan Jangka Panjang:</strong> Identifikasi pegawai di jenjang di bawahnya yang memiliki potensi tinggi dan masukkan mereka ke dalam program akselerasi pengembangan.</li></ul>`;
+        const noCandidateHtml = `<h3>Analisis Strategis Suksesi untuk ${job.title}</h3><p><strong>Peringatan Kritis:</strong> Saat ini tidak ada kandidat internal yang teridentifikasi untuk mengisi jabatan kritikal ini. Hal ini menciptakan risiko keberlanjutan kepemimpinan yang signifikan pada ${job.unitKerja}.</p><h4>Rekomendasi Aksi Segera:</h4><ul><li><strong>Identifikasi Eksternal:</strong> Segera mulai proses identifikasi kandidat potensial dari luar instansi.</li><li><strong>Review Kriteria:</strong> Lakukan peninjauan ulang terhadap kriteria jabatan dan data talenta di SKPD terkait.</li><li><strong>Pengembangan Jangka Panjang:</strong> Identifikasi pegawai di jenjang di bawahnya yang memiliki potensi tinggi dan masukkan mereka ke dalam program akselerasi pengembangan.</li></ul>`;
         return res.json({ text: noCandidateHtml });
     }
     const candidateSummary = candidates.map((c: any) => { const { boxNumber, category } = getEmployeeBoxInfo(c); return `- \${c.name} (Jabatan: \${c.jabatan}, Posisi: Kotak \${boxNumber} - \${category}, Status: \${c.successionStatus})`; }).join('\n');
@@ -244,7 +262,7 @@ async function startServer() {
     
     try {
         const response = await generateContentWithRetry({
-             model: "gemini-3-flash-preview",
+             model: "gemini-2.5-flash",
              contents: prompt,
              config: { temperature: 0.6, topP: 0.95 }
         });
@@ -256,7 +274,7 @@ async function startServer() {
   });
 
   app.post('/api/generate/match-candidates', async (req, res) => {
-    const { job, candidates } = req.body;
+    const { job, candidates = [] } = req.body;
     const simplifiedCandidates = candidates.map((c: any) => ({
         id: c.id,
         name: c.name,
@@ -307,7 +325,7 @@ async function startServer() {
             }
         };
         const response = await generateContentWithRetry({
-            model: "gemini-3-flash-preview",
+            model: "gemini-2.5-flash",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -322,6 +340,93 @@ async function startServer() {
         console.error("Gemini API Error:", error);
         res.status(500).json({ message: "Error generating content from Gemini", error: error.message, stack: error.stack });
     }
+  });
+
+  app.post('/api/generate/deep-succession-analysis', (req, res) => {
+    const { employees = [], jobs = [] } = req.body;
+    
+    // Create summaries for the AI
+    const skpdMap: { [key: string]: { total: number, eselonNeeds: any, readyNow: number } } = {};
+    let totalSiapSekarang = 0;
+    
+    // Calculate Nine-Box Matrix Distribution
+    const nineBoxDistribution = {
+        '9 (Top Talent)': 0,
+        '8 (High Potential)': 0,
+        '7 (High Performer)': 0,
+        '6 (Promotable)': 0,
+        '5 (Core Employee)': 0,
+        '4 (Solid Professional)': 0,
+        '3 (Inconsistent Player)': 0,
+        '2 (Dilemma)': 0,
+        '1 (Underperformer)': 0
+    };
+
+    employees.forEach((e: any) => {
+        if (!skpdMap[e.unitKerja]) {
+            skpdMap[e.unitKerja] = { total: 0, eselonNeeds: {}, readyNow: 0 };
+        }
+        skpdMap[e.unitKerja].total++;
+        if (e.successionStatus === 'Siap Sekarang') {
+            skpdMap[e.unitKerja].readyNow++;
+            totalSiapSekarang++;
+        }
+
+        // Map to 9-box (simplified mapping based on scores 0-100)
+        let perfCategory = e.performance >= 90 ? 'High' : (e.performance >= 70 ? 'Meets' : 'Below');
+        let potCategory = e.potential >= 90 ? 'High' : (e.potential >= 70 ? 'Meets' : 'Below');
+
+        if (perfCategory === 'High' && potCategory === 'High') nineBoxDistribution['9 (Top Talent)']++;
+        else if (perfCategory === 'Meets' && potCategory === 'High') nineBoxDistribution['8 (High Potential)']++;
+        else if (perfCategory === 'High' && potCategory === 'Meets') nineBoxDistribution['7 (High Performer)']++;
+        else if (perfCategory === 'Meets' && potCategory === 'Meets') nineBoxDistribution['5 (Core Employee)']++;
+        else if (perfCategory === 'High' && potCategory === 'Below') nineBoxDistribution['4 (Solid Professional)']++;
+        else if (perfCategory === 'Below' && potCategory === 'High') nineBoxDistribution['6 (Promotable)']++; // or Dilemma depending on framework
+        else if (perfCategory === 'Meets' && potCategory === 'Below') nineBoxDistribution['3 (Inconsistent Player)']++;
+        else if (perfCategory === 'Below' && potCategory === 'Meets') nineBoxDistribution['2 (Dilemma)']++;
+        else nineBoxDistribution['1 (Underperformer)']++;
+    });
+
+    const skpdSummary = Object.entries(skpdMap).map(([skpd, data]) => `- ${skpd}: Total ${data.total} pegawai, ${data.readyNow} kandidat "Siap Sekarang".`).join('\n');
+    const boxSummary = Object.entries(nineBoxDistribution).filter(([, count]) => count > 0).map(([box, count]) => `- ${box}: ${count} pegawai`).join('\n');
+
+    const jobSummary = jobs.map((j: any) => `- ${j.title} (${j.unitKerja}): Kebutuhan Eselon ${j.requiredEselon}, Lowongan: ${j.vacancies}`).join('\n');
+    const employeeSummary = employees.filter((e:any) => e.successionStatus === 'Siap Sekarang').map((e: any) => `- ${e.name} (${e.jabatan}, ${e.unitKerja}, Eselon ${e.eselon}, Perf: ${e.performance}, Pot: ${e.potential})`).join('\n');
+
+    const prompt = `
+    Anda adalah Konsultan Ahli Manajemen Talenta. Buat Laporan Analisis Suksesi Mendalam yang BERBASIS DATA (Data-Driven) untuk Pemerintah Kabupaten Aceh Barat.
+
+    STATISTIK EMPIRIS:
+    Total Pegawai Dianalisis: ${employees.length}
+    Total Kadidat "Siap Sekarang": ${totalSiapSekarang}
+
+    Distribusi Nine-Box Matrix:
+    ${boxSummary}
+
+    Demografi berdasarkan SKPD:
+    ${skpdSummary}
+    
+    Data Jabatan Kritikal yang butuh diisi:
+    ${jobSummary}
+    
+    Daftar Talenta "Siap Sekarang" (Kandidat Utama):
+    ${employeeSummary}
+    
+    Instruksi:
+    Hasilkan laporan komprehensif dalam format HTML yang langsung bisa dirender (tanpa tag html/body utama).
+    Gunakan heading (<h3>, <h4>), paragraf (<p>), list (<ul>, <li>), dan tabel (<table>, <tr>, <th>, <td> dengan class Tailwind CSS standar) untuk visualisasi yang jelas.
+    
+    MANDATORI: Analisis Anda HARUS secara eksplisit mengutip statistik dari atas (misalnya persentase, jumlah spesifik di 9-box matrix, rasio kandidat vs lowongan). Jangan mengarang data!
+
+    Laporan harus berisi:
+    1. <h3>Executive Summary & Kondisi Pipeline</h3>: Penilaian kuantitatif kesehatan pipeline suksesi berdasarkan rasio kandidat "Siap Sekarang" dibanding jumlah lowongan kritikal dan sebaran 9-Box Matrix. Gunakan angka di paragraf Anda.
+    2. <h3>Analisis Kesenjangan (Gap Analysis) SKPD</h3>: Jelaskan SKPD mana yang paling kekurangan atau berlebih talenta didukung data empiris di atas. Buatkan sebuah tabel sintesis sederhana yang mudah dibaca.
+    3. <h3>Saran Rotasi Taktikal (Berdasarkan Kandidat)</h3>: Jika satu SKPD kelebihan talenta "Siap Sekarang" di suatu eselon sementara SKPD lain kekurangan, rekomendasikan rotasi silang untuk mengisi Jabatan Kritikal secara spesifik (sebut nama kandidat dan skor kinerjanya).
+    4. <h3>Rekomendasi Kebijakan Jangka Panjang</h3>: Strategi pengembangan kompetensi berdampak tinggi berbasis data 9-Box yang telah Anda analisis.
+    
+    Gunakan bahasa profesional, berwibawa khas birokrasi, namun sangat numerik dan data-driven.
+    `;
+    handleGeminiRequest(res, "gemini-2.5-flash", prompt, { temperature: 0.5, topP: 0.95 });
   });
 
   // --- VITE MIDDLEWARE ---

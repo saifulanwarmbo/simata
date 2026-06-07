@@ -104,6 +104,32 @@ export const saveCriticalJobToStorage = async (job: CriticalJob): Promise<void> 
     }
 };
 
+export const deleteAllEmployeesFromStorage = async (): Promise<void> => {
+    try {
+        const querySnapshot = await getDocs(collection(db, 'employees'));
+        const batch = writeBatch(db);
+        querySnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+    } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'employees');
+    }
+};
+
+export const deleteAllCriticalJobsFromStorage = async (): Promise<void> => {
+    try {
+        const querySnapshot = await getDocs(collection(db, 'criticalJobs'));
+        const batch = writeBatch(db);
+        querySnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+    } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'criticalJobs');
+    }
+};
+
 export const deleteCriticalJobFromStorage = async (id: string): Promise<void> => {
     try {
         await deleteDoc(doc(db, 'criticalJobs', id));

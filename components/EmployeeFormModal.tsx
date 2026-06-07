@@ -1,18 +1,22 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Employee, SuccessionStatus, EducationHistory, PerformanceHistory, CareerHistory, DevelopmentHistory } from '../types';
+import { motion } from 'motion/react';
 import { CloseIcon, CameraIcon, AddIcon, DeleteIcon } from './icons';
-import { performanceMap, potentialMap, getPerformanceScale, getPotentialScale, calculateSuccessionStatus, getBirthDateFromNIP, skpdOptions, pangkatGolonganOptions } from '../utils/talentUtils';
+import { performanceMap, potentialMap, getPerformanceScale, getPotentialScale, calculateSuccessionStatus, getBirthDateFromNIP, skpdOptions, pangkatGolonganOptions, validateNIPValidation } from '../utils/talentUtils';
 
 
 interface EmployeeFormModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (employee: Employee) => void;
+    onDelete?: (id: string) => void;
     employee: Employee | null;
+    allEmployees?: Employee[];
+    isAdmin?: boolean;
 }
 
-const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, onSave, employee }) => {
+const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, onSave, onDelete, employee, allEmployees = [], isAdmin = true }) => {
     const getInitialFormData = (): Omit<Employee, 'id' | 'avatar' | 'skills' | 'submissionType' | 'status'> & { skills: string } => ({
         name: '',
         nip: '',
@@ -120,8 +124,36 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+        
+        if (name === 'nip') {
+            const numericValue = value.replace(/\D/g, '').slice(0, 18);
+            setFormData(prev => ({ ...prev, [name]: numericValue }));
+            return;
+        }
+
         const isNumeric = ['performance', 'potential', 'competency'].includes(name);
-        setFormData(prev => ({ ...prev, [name]: isNumeric ? Number(value) : value }));
+        
+        setFormData(prev => {
+            const newData = { ...prev, [name]: isNumeric ? Number(value) : value };
+            
+            // Auto mapping eselon based on jabatan
+            if (name === 'jabatan') {
+                const lowerJab = value.toLowerCase();
+                let overrideEselon: string | null = null;
+                if (lowerJab.includes('kepala dinas') || lowerJab.includes('kadin') || lowerJab.includes('kepala badan') || lowerJab.includes('kaban')) overrideEselon = 'JPT Pratama (Eselon II)';
+                else if (lowerJab.includes('kepala bidang') || lowerJab.includes('kabid') || lowerJab.includes('kepala bagian') || lowerJab.includes('kabag') || lowerJab.includes('sekretaris') || lowerJab.includes('sekdis') || lowerJab.includes('camat') || lowerJab.includes('sekcam') || lowerJab.includes('sekretaris kecamatan')) overrideEselon = 'Administrator (Eselon III)';
+                else if (lowerJab.includes('kepala sub') || lowerJab.includes('kasub') || lowerJab.includes('kepala seksi') || lowerJab.includes('kasi') || lowerJab.includes('lurah')) overrideEselon = 'Pengawas (Eselon IV)';
+                else if (lowerJab.includes('ahli muda')) overrideEselon = 'Fungsional Ahli Muda';
+                else if (lowerJab.includes('ahli madya')) overrideEselon = 'Fungsional Ahli Madya';
+                else if (lowerJab.includes('ahli pertama')) overrideEselon = 'Fungsional Ahli Pertama';
+                
+                if (overrideEselon) {
+                    newData.eselon = overrideEselon;
+                }
+            }
+            
+            return newData;
+        });
     };
 
     const handleAddItem = (field: 'educationHistory' | 'performanceHistory' | 'careerHistory' | 'developmentHistory') => {
@@ -159,6 +191,12 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
+        const nipValidation = validateNIPValidation(formData.nip);
+        if (!nipValidation.isValid) {
+            alert(`Format NIP Tidak Valid: ${nipValidation.message}\nMohon periksa kembali integritas data NIP Anda (terdiri dari tahun/bulan/tanggal lahir, tahun/bulan pengangkatan, jenis kelamin, dan nomor urut).`);
+            return;
+        }
+        
         // Note: `pendidikan` and `jurusan` in formData are now always up-to-date thanks to a dedicated useEffect.
         
         const sortedDevelopment = [...(formData.developmentHistory || [])]
@@ -180,10 +218,23 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
             avatar: avatarPreview || `https://ui-avatars.com/api/?name=${newEmployeeData.name.replace(/\s/g, '+') || newEmployeeData.nip}&background=c7d2fe&color=3730a3&font-size=0.5`,
             submissionType: 'Admin',
             status: 'Disetujui',
+            updatedAt: new Date().toISOString(),
         };
         onSave(newEmployee);
     };
 
+
+    const dynamicSkpdOptions = React.useMemo(() => {
+        const staticOptions = new Set(skpdOptions);
+        if (allEmployees && allEmployees.length > 0) {
+            allEmployees.forEach(emp => {
+                if (emp.unitKerja && emp.unitKerja.trim() !== '' && emp.unitKerja.trim() !== 'Lainnya') {
+                    staticOptions.add(emp.unitKerja.trim());
+                }
+            });
+        }
+        return Array.from(staticOptions).sort();
+    }, [allEmployees]);
 
     if (!isOpen) return null;
 
@@ -199,8 +250,8 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
     const addButtonStyle = "flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-md hover:bg-indigo-100 transition-colors";
     
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl m-4 flex flex-col relative" onClick={e => e.stopPropagation()}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-center" onClick={onClose}>
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="bg-white rounded-xl shadow-2xl w-full max-w-4xl m-4 flex flex-col relative" onClick={e => e.stopPropagation()}>
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                         <div className="flex items-center gap-4">
@@ -226,15 +277,15 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
                         </div>
                         <div><label htmlFor="name" className="block text-sm font-medium text-gray-700">Nama Lengkap</label><input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className={inputStyle} /></div>
                         {/* Gelar Akademik Removed */}
-                        <div><label htmlFor="nip" className="block text-sm font-medium text-gray-700">NIP</label><input type="text" name="nip" id="nip" value={formData.nip} onChange={handleChange} required className={inputStyle} /></div>
+                        <div><label htmlFor="nip" className="block text-sm font-medium text-gray-700">NIP</label><input type="text" name="nip" id="nip" value={formData.nip} onChange={handleChange} required maxLength={18} pattern="\d{18}" title="NIP harus terdiri dari 18 angka" className={inputStyle} /></div>
                         <div><label htmlFor="email" className="block text-sm font-medium text-gray-700">Email (Opsional)</label><input type="email" name="email" id="email" value={formData.email || ''} onChange={handleChange} className={inputStyle} /></div>
-                        <div className="md:col-span-2"><label htmlFor="phone" className="block text-sm font-medium text-gray-700">Nomor HP/WA Aktif</label><input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} required className={inputStyle} /></div>
+                        <div className="md:col-span-2"><label htmlFor="phone" className="block text-sm font-medium text-gray-700">Nomor HP/WA Aktif</label><input type="tel" name="phone" id="phone" value={formData.phone || ''} onChange={handleChange} className={inputStyle} /></div>
 
                         <div className="md:col-span-2 mt-4"><h3 className="font-semibold text-gray-800 border-b pb-2">Data Pekerjaan & Talenta</h3></div>
                         <div><label htmlFor="jabatan" className="block text-sm font-medium text-gray-700">Jabatan</label><input type="text" name="jabatan" id="jabatan" value={formData.jabatan} onChange={handleChange} required className={inputStyle} /></div>
                         <div>
                             <label htmlFor="pangkatGolongan" className="block text-sm font-medium text-gray-700">Pangkat/Golongan Ruang</label>
-                            <select name="pangkatGolongan" id="pangkatGolongan" value={formData.pangkatGolongan} onChange={handleChange} required className={selectStyle}>
+                            <select name="pangkatGolongan" id="pangkatGolongan" value={formData.pangkatGolongan || ''} onChange={handleChange} className={selectStyle}>
                                 <option value="">Pilih Pangkat/Golongan Ruang</option>
                                 {pangkatGolonganOptions.map(option => (<option key={option} value={option}>{option}</option>))}
                             </select>
@@ -243,7 +294,7 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
                             <label htmlFor="unitKerja" className="block text-sm font-medium text-gray-700">SKPD (Unit Kerja)</label>
                             <select name="unitKerja" id="unitKerja" value={formData.unitKerja} onChange={handleChange} required className={selectStyle}>
                                 <option value="">Pilih SKPD</option>
-                                {skpdOptions.map(option => (<option key={option} value={option}>{option}</option>))}
+                                {dynamicSkpdOptions.map(option => (<option key={option} value={option}>{option}</option>))}
                                 <option value="Lainnya">Lainnya...</option>
                             </select>
                             {formData.unitKerja === 'Lainnya' && (
@@ -311,37 +362,51 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
                             ))}
                         </div>
                         
-                        <div className="md:col-span-2 mt-4"><h3 className="font-semibold text-gray-800 border-b pb-2">Penilaian & Suksesi</h3></div>
-                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
-                            <div>
-                                <label htmlFor="performance" className="block text-sm font-medium text-gray-700">Skor Kinerja (Saat Ini)</label>
-                                <input type="number" name="performance" id="performance" value={formData.performance} onChange={handleChange} required min="1" max="100" className={inputStyle} placeholder="1-100" />
-                                <p className="text-xs text-gray-500 mt-1">Kategori: <span className="font-semibold">{performanceMap[getPerformanceScale(formData.performance)]}</span></p>
-                            </div>
-                            <div>
-                                <label htmlFor="potential" className="block text-sm font-medium text-gray-700">Skor Potensi</label>
-                                <input type="number" name="potential" id="potential" value={formData.potential} onChange={handleChange} required min="1" max="100" className={inputStyle} placeholder="1-100" />
-                                <p className="text-xs text-gray-500 mt-1">Kategori: <span className="font-semibold">{potentialMap[getPotentialScale(formData.potential)]}</span></p>
-                            </div>
-                            <div>
-                                <label htmlFor="competency" className="block text-sm font-medium text-gray-700">Skor Kompetensi</label>
-                                <input type="number" name="competency" id="competency" value={formData.competency || ''} onChange={handleChange} required min="1" max="100" className={inputStyle} placeholder="1-100" />
-                                <p className="text-xs text-gray-500 mt-1">Teknis, manajerial, &amp; sosio-kultural.</p>
-                            </div>
-                        </div>
-                        <div className="md:col-span-2">
-                            <label htmlFor="successionStatus" className="block text-sm font-medium text-gray-700">Status Suksesi (Otomatis)</label>
-                            <div id="successionStatus" className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm font-semibold text-gray-800">{formData.successionStatus}</div>
-                            <p className="text-xs text-gray-500 mt-1">Status ini ditentukan secara otomatis berdasarkan skor Kinerja, Potensi, usia pensiun, dan kualifikasi pendidikan.</p>
-                        </div>
+                        {isAdmin && (
+                            <>
+                                <div className="md:col-span-2 mt-4"><h3 className="font-semibold text-gray-800 border-b pb-2">Penilaian & Suksesi</h3></div>
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+                                    <div>
+                                        <label htmlFor="performance" className="block text-sm font-medium text-gray-700">Skor Kinerja (Saat Ini)</label>
+                                        <input type="number" name="performance" id="performance" value={formData.performance} onChange={handleChange} required min="1" max="100" className={inputStyle} placeholder="1-100" />
+                                        <p className="text-xs text-gray-500 mt-1">Kategori: <span className="font-semibold">{performanceMap[getPerformanceScale(formData.performance)]}</span></p>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="potential" className="block text-sm font-medium text-gray-700">Skor Potensi</label>
+                                        <input type="number" name="potential" id="potential" value={formData.potential} onChange={handleChange} required min="1" max="100" className={inputStyle} placeholder="1-100" />
+                                        <p className="text-xs text-gray-500 mt-1">Kategori: <span className="font-semibold">{potentialMap[getPotentialScale(formData.potential)]}</span></p>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="competency" className="block text-sm font-medium text-gray-700">Skor Kompetensi</label>
+                                        <input type="number" name="competency" id="competency" value={formData.competency || ''} onChange={handleChange} required min="1" max="100" className={inputStyle} placeholder="1-100" />
+                                        <p className="text-xs text-gray-500 mt-1">Teknis, manajerial, &amp; sosio-kultural.</p>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label htmlFor="successionStatus" className="block text-sm font-medium text-gray-700">Status Suksesi (Otomatis)</label>
+                                    <div id="successionStatus" className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm font-semibold text-gray-800">{formData.successionStatus}</div>
+                                    <p className="text-xs text-gray-500 mt-1">Status ini ditentukan secara otomatis berdasarkan skor Kinerja, Potensi, usia pensiun, dan kualifikasi pendidikan.</p>
+                                </div>
+                            </>
+                        )}
                     </div>
-                    <div className="p-6 bg-gray-50 rounded-b-xl flex justify-end space-x-3">
-                         <button type="button" onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Batal</button>
-                        <button type="submit" className="px-5 py-2.5 bg-indigo-600 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Simpan</button>
+                    <div className="p-6 bg-gray-50 rounded-b-xl flex justify-between space-x-3">
+                        <div>
+                            {employee && onDelete && (
+                                <button type="button" onClick={() => onDelete(employee.id)} className="px-5 py-2.5 bg-red-100 border border-transparent rounded-lg text-sm font-semibold text-red-600 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors flex items-center">
+                                    <DeleteIcon className="w-4 h-4 mr-2" />
+                                    Hapus
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex space-x-3">
+                            <button type="button" onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Batal</button>
+                            <button type="submit" className="px-5 py-2.5 bg-indigo-600 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Simpan</button>
+                        </div>
                     </div>
                 </form>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

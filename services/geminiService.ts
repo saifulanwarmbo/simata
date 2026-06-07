@@ -24,7 +24,7 @@ async function callBackend(endpoint: string, body: any): Promise<string> {
         const data = await response.json();
         return data.text || '';
     } catch (error: any) {
-        console.error(`Error calling Gemini backend (\${endpoint}):`, error);
+        console.error(`Error calling Gemini backend (${endpoint}):`, error);
         throw error;
     }
 }
@@ -39,17 +39,19 @@ export async function generateJobDescription(title: string, unitKerja: string): 
 
 export async function generateDevelopmentPlan(employee: Employee): Promise<string> {
     try {
-        return await callBackend('development-plan', { employee });
+        const minimalEmployee = { ...employee, avatar: undefined };
+        return await callBackend('development-plan', { employee: minimalEmployee });
     } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Rencana</h3><p>Terjadi kesalahan: \${error.message}</p>`;
+        return `<h3>Gagal Menghasilkan Rencana</h3><p>Terjadi kesalahan: ${error.message}</p>`;
     }
 }
 
 export async function generateTalentPoolAnalysis(employees: Employee[]): Promise<string> {
     try {
-        return await callBackend('talent-pool-analysis', { employees });
+        const minimalEmployees = employees.map(e => ({ ...e, avatar: undefined }));
+        return await callBackend('talent-pool-analysis', { employees: minimalEmployees });
     } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: \${error.message}</p>`;
+        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: ${error.message}</p>`;
     }
 }
 
@@ -80,9 +82,10 @@ export async function generateEmployeeData(jabatan: string, unitKerja: string): 
 
 export async function generateSuccessionInsight(job: CriticalJob, candidates: Employee[]): Promise<string> {
     try {
-        return await callBackend('succession-insight', { job, candidates });
+        const minimalCandidates = candidates.map(e => ({ ...e, avatar: undefined }));
+        return await callBackend('succession-insight', { job, candidates: minimalCandidates });
     } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: \${error.message}</p>`;
+        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: ${error.message}</p>`;
     }
 }
 
@@ -94,10 +97,11 @@ export interface CandidateMatchResult {
 
 export async function generateCandidateMatch(job: CriticalJob, candidates: Employee[]): Promise<CandidateMatchResult[]> {
     try {
+        const minimalCandidates = candidates.map(e => ({ ...e, avatar: undefined }));
         const response = await fetch('/api/generate/match-candidates', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job, candidates })
+            body: JSON.stringify({ job, candidates: minimalCandidates })
         });
 
         if (!response.ok) throw new Error('Failed to match candidates');
@@ -107,5 +111,14 @@ export async function generateCandidateMatch(job: CriticalJob, candidates: Emplo
     } catch (error: any) {
         console.error("Error generating candidate match:", error);
         throw new Error("Gagal melakukan analisis pencocokan kandidat.");
+    }
+}
+
+export async function generateDeepSuccessionAnalysis(employees: Employee[], jobs: CriticalJob[]): Promise<string> {
+    try {
+        const minimalEmployees = employees.map(e => ({ ...e, avatar: undefined }));
+        return await callBackend('deep-succession-analysis', { employees: minimalEmployees, jobs });
+    } catch (error: any) {
+        return `<h3>Gagal Menghasilkan Laporan</h3><p>Terjadi kesalahan: ${error.message}</p>`;
     }
 }

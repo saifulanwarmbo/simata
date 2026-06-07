@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { CriticalJob } from '../types';
-import { CloseIcon } from './icons';
+import { motion } from 'motion/react';
+import { CloseIcon, DeleteIcon } from './icons';
 import { eselonOrder } from '../utils/talentUtils';
 
 interface CriticalJobFormModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (job: CriticalJob) => void;
+    onDelete?: (id: string) => void;
     job: CriticalJob | null;
 }
 
-const CriticalJobFormModal: React.FC<CriticalJobFormModalProps> = ({ isOpen, onClose, onSave, job }) => {
+const CriticalJobFormModal: React.FC<CriticalJobFormModalProps> = ({ isOpen, onClose, onSave, onDelete, job }) => {
     const getInitialFormData = (): Omit<CriticalJob, 'id'> => ({
         title: '',
         unitKerja: '',
@@ -70,8 +72,8 @@ const CriticalJobFormModal: React.FC<CriticalJobFormModalProps> = ({ isOpen, onC
     const textareaStyle = `${inputStyle} resize-y min-h-[80px]`;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl m-4 flex flex-col relative" onClick={e => e.stopPropagation()}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-center" onClick={onClose}>
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="bg-white rounded-xl shadow-2xl w-full max-w-xl m-4 flex flex-col relative" onClick={e => e.stopPropagation()}>
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                         <h2 className="text-xl font-bold text-gray-900">{job ? 'Edit Jabatan Kritikal' : 'Tambah Jabatan Kritikal Baru'}</h2>
@@ -133,17 +135,27 @@ const CriticalJobFormModal: React.FC<CriticalJobFormModalProps> = ({ isOpen, onC
                             <input type="number" name="vacancies" id="vacancies" value={formData.vacancies} onChange={handleChange} required min="1" className={inputStyle} />
                         </div>
                     </div>
-                    <div className="p-6 bg-gray-50 rounded-b-xl flex justify-end space-x-3">
-                         <button type="button" onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                            Batal
-                        </button>
-                        <button type="submit" className="px-5 py-2.5 bg-indigo-600 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                            Simpan Jabatan
-                        </button>
+                    <div className="p-6 bg-gray-50 rounded-b-xl flex justify-between space-x-3">
+                        <div>
+                            {job && onDelete && (
+                                <button type="button" onClick={() => onDelete(job.id)} className="px-5 py-2.5 bg-red-100 border border-transparent rounded-lg text-sm font-semibold text-red-600 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors flex items-center">
+                                    <DeleteIcon className="w-4 h-4 mr-2" />
+                                    Hapus
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex space-x-3">
+                             <button type="button" onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                                Batal
+                            </button>
+                            <button type="submit" className="px-5 py-2.5 bg-indigo-600 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                                Simpan Jabatan
+                            </button>
+                        </div>
                     </div>
                 </form>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

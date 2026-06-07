@@ -78,32 +78,61 @@ const NineBoxGrid: React.FC<NineBoxGridProps> = ({ employees, selectedBox, onBox
                                 <div key={key} className={`col-start-${potIndex + 2} row-start-${perfIndex + 2}`}>
                                     <button
                                         onClick={() => onBoxSelect(boxNumber)}
-                                        className={`w-full h-full text-left rounded-lg flex flex-col min-h-[170px] overflow-hidden ${styles.bgColor} transition-all duration-200 ${isSelected ? 'ring-2 ring-offset-2 ring-indigo-500 shadow-xl' : 'border border-gray-200 hover:shadow-lg hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400'}`}
+                                        className={`relative w-full h-full text-left rounded-lg flex flex-col min-h-[170px] overflow-hidden ${styles.bgColor} transition-all duration-200 ${isSelected ? 'ring-2 ring-offset-2 ring-indigo-500 shadow-xl' : 'border border-gray-200 hover:shadow-lg hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-400'}`}
                                         aria-pressed={isSelected}
                                         aria-label={`Kotak ${boxNumber}: ${category}. ${cellEmployees.length} pegawai.`}
                                     >
-                                        <div className={`flex justify-between items-start p-3 ${styles.color}`}>
+                                        {/* Box Number in Center */}
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                                            <span className="text-[8rem] font-bold opacity-[0.07] text-slate-900 pointer-events-none select-none">
+                                                {boxNumber}
+                                            </span>
+                                        </div>
+
+                                        <div className={`relative z-10 flex justify-between items-start p-3 ${styles.color}`}>
                                             <h3 className="font-extrabold text-2xl">{boxNumber}</h3>
-                                            <span className="text-2xl font-bold opacity-90">{cellEmployees.length}</span>
                                         </div>
                                         
-                                        <div className="p-3 flex flex-col flex-grow">
-                                            <p className="text-xs font-semibold text-gray-700 mb-3 flex-grow">{category}</p>
-                                            
-                                            <div className="flex flex-wrap items-end gap-1 mt-auto h-9">
-                                                {cellEmployees.length > 0 ? cellEmployees.slice(0, 5).map(emp => (
-                                                    <img key={emp.id} src={emp.avatar} alt={emp.name} className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm" title={emp.name} />
-                                                )) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <span className="text-xs text-gray-400">Kosong</span>
-                                                    </div>
-                                                )}
-                                                {cellEmployees.length > 5 && (
-                                                    <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-gray-600 text-xs font-bold border-2 border-white shadow-sm" title={`${cellEmployees.length - 5} pegawai lainnya`}>
-                                                       +{cellEmployees.length - 5}
-                                                    </div>
-                                                )}
-                                            </div>
+                                        <div className="relative z-10 px-3 pb-1">
+                                            <p className="text-xs font-semibold text-gray-800 opacity-80 mix-blend-color-burn">{category}</p>
+                                        </div>
+                                        
+                                        {/* Scatter Plot Layer */}
+                                        <div className="absolute inset-x-2 top-[4.5rem] bottom-2 pointer-events-none z-20">
+                                            {cellEmployees.map(emp => {
+                                                const getRelativePos = (val: number, scale: number) => {
+                                                    let min = 0; let max = 100;
+                                                    if (scale === 1) { min = 0; max = 69.99; }
+                                                    else if (scale === 2) { min = 70; max = 89.99; }
+                                                    else if (scale === 3) { min = 90; max = 100; }
+                                                    const pct = ((val - min) / (max - min)) * 100;
+                                                    // Clamp between 10% and 90% to keep avatars safely inside
+                                                    return Math.max(10, Math.min(90, pct));
+                                                };
+
+                                                const leftPos = getRelativePos(emp.potential, pot.p);
+                                                // We invert performance because top is 0% and bottom is 100% in CSS
+                                                const topPos = 100 - getRelativePos(emp.performance, perf.p);
+
+                                                // Generates a simple repeatable jitter from the ID string, to prevent exact overlaps
+                                                const hash = emp.id.split('').reduce((a, b) => {a = ((a << 5) - a) + b.charCodeAt(0); return a & a}, 0);
+                                                const jitterX = (hash % 15) - 7;
+                                                const jitterY = ((hash >> 3) % 15) - 7;
+
+                                                return (
+                                                    <div 
+                                                        key={emp.id} 
+                                                        className="absolute w-2.5 h-2.5 rounded-full border border-white shadow-sm bg-slate-800 hover:scale-150 hover:bg-indigo-600 hover:z-50 transition-all duration-200 pointer-events-auto"
+                                                        style={{ 
+                                                            left: `calc(${leftPos}% + ${jitterX}px)`, 
+                                                            top: `calc(${topPos}% + ${jitterY}px)`,
+                                                            transform: 'translate(-50%, -50%)',
+                                                            zIndex: 20 + Math.abs(jitterX)
+                                                        }}
+                                                        title={`${emp.name}\nKinerja: ${emp.performance}\nPotensi: ${emp.potential}`}
+                                                    />
+                                                );
+                                            })}
                                         </div>
                                     </button>
                                 </div>

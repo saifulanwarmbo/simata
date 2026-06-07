@@ -71,6 +71,7 @@ const PipelineHealthIndicator = ({ candidates, vacancies }: { candidates: Employ
 };
 
 interface CandidateCardProps {
+    key?: React.Key | string | number | null;
     employee: Employee | (Employee & { matchReason?: string; score?: number });
     matchReason?: string;
     requiredEducation?: string[];
@@ -161,6 +162,7 @@ const TabButton = ({ isActive, onClick, children }: TabButtonProps) => (
 );
 
 interface CriticalJobAnalysisCardProps {
+    key?: React.Key | string | number | null;
     job: CriticalJob;
     allEmployees: Employee[];
     onEdit: (job: CriticalJob) => void;

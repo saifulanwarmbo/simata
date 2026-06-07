@@ -14,7 +14,8 @@ import {
     generateTalentPoolAnalysis as geminiAnalysis, 
     generateEmployeeData as geminiEmployeeData, 
     generateSuccessionInsight as geminiSuccession, 
-    generateCandidateMatch as geminiMatch 
+    generateCandidateMatch as geminiMatch,
+    generateDeepSuccessionAnalysis as geminiDeepAnalysis
 } from './geminiService';
 
 /**
@@ -95,4 +96,8 @@ export const generateSuccessionInsight = async (job: CriticalJob, candidates: Em
 
 export const generateCandidateMatch = async (job: CriticalJob, candidates: Employee[]) => {
     return await geminiMatch(job, candidates);
+};
+
+export const generateDeepSuccessionAnalysis = async (employees: Employee[], jobs: CriticalJob[]): Promise<string> => {
+    return await geminiDeepAnalysis(employees, jobs);
 };

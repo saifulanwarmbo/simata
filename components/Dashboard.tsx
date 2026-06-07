@@ -22,16 +22,24 @@ import {
     deleteMultipleEmployeesFromStorage,
     loadCriticalJobsFromStorage, 
     saveCriticalJobToStorage,
-    deleteCriticalJobFromStorage
+    deleteCriticalJobFromStorage,
+    deleteAllEmployeesFromStorage,
+    deleteAllCriticalJobsFromStorage
 } from '../utils/storage';
+import { getPublicAccessSettings, savePublicAccessSettings } from '../utils/settingsStorage';
 import { generateJobDescription, generateDevelopmentPlan, generateTalentPoolAnalysis } from '../services/geminiService';
-import { getEmployeeBoxInfo, getEselonRank, getBirthDateFromNIP, calculateSuccessionStatus } from '../utils/talentUtils';
+import { getEmployeeBoxInfo, getEselonRank, getBirthDateFromNIP, calculateSuccessionStatus, skpdOptions } from '../utils/talentUtils';
 import { LoadingIcon, WarningIcon, MenuIcon } from './icons';
 import Sidebar from './Sidebar';
 import DashboardSummary from './DashboardSummary';
 import SubmissionReviewPage from '../pages/SubmissionReviewPage';
+import SettingsModal from './SettingsModal';
+import ExportModal from './ExportModal';
+import ActivityLogPage from '../pages/ActivityLogPage';
+import DeepAnalysisPage from '../pages/DeepAnalysisPage';
+import { PublicAccessSettings } from '../types';
 
-type ViewMode = 'summary' | 'list' | 'talentPool' | 'criticalJobs' | 'submissionReview';
+type ViewMode = 'summary' | 'list' | 'talentPool' | 'criticalJobs' | 'submissionReview' | 'activityLog' | 'deepAnalysis';
 
 interface DashboardProps {
     onLogout: () => void;
@@ -48,6 +56,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
     const [searchTerm, setSearchTerm] = useState('');
     const [sortKey, setSortKey] = useState('eselon-desc');
     const [successionStatusFilter, setSuccessionStatusFilter] = useState<SuccessionStatus | 'all'>('all');
+    const [skpdFilter, setSkpdFilter] = useState<string>('all');
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
 
     useEffect(() => {
@@ -92,14 +101,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
 
     const [error, setError] = useState<string | null>(null);
 
+    const [publicAccessSettings, setPublicAccessSettings] = useState<PublicAccessSettings>({ isOpen: true, startTime: '', endTime: '' });
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
     const fetchData = useCallback(async () => {
         setIsLoadingApp(true);
         setError(null);
         try {
             const emps = await loadEmployeesFromStorage();
             const jobs = await loadCriticalJobsFromStorage();
+            const settings = await getPublicAccessSettings();
             setEmployees(emps);
             setCriticalJobs(jobs);
+            setPublicAccessSettings(settings);
         } catch (err) {
             let errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
             try {
@@ -164,6 +179,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
             processedEmployees = processedEmployees.filter(emp => emp.successionStatus === successionStatusFilter);
         }
 
+        if (skpdFilter !== 'all') {
+            processedEmployees = processedEmployees.filter(emp => emp.unitKerja === skpdFilter);
+        }
+
         if (sortKey === 'default') return processedEmployees;
 
         const [key, direction] = sortKey.split('-');
@@ -191,11 +210,40 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
             if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [approvedEmployees, searchTerm, sortKey, successionStatusFilter]);
+    }, [approvedEmployees, searchTerm, sortKey, successionStatusFilter, skpdFilter]);
+
+    const checkIsPublicAccessAllowed = useCallback((): boolean => {
+        if (isAdmin) return true;
+        if (!publicAccessSettings.isOpen) return false;
+        
+        const now = new Date().getTime();
+        const start = publicAccessSettings.startTime ? new Date(publicAccessSettings.startTime).getTime() : 0;
+        const end = publicAccessSettings.endTime ? new Date(publicAccessSettings.endTime).getTime() : Infinity;
+        
+        if (start && now < start) return false;
+        if (end && now > end) return false;
+        
+        return true;
+    }, [isAdmin, publicAccessSettings]);
 
     // --- Employee CRUD Handlers ---
-    const handleAddEmployee = useCallback(() => { setEditingEmployee(null); setIsFormModalOpen(true); }, []);
-    const handleEditEmployee = useCallback((employee: Employee) => { setEditingEmployee(employee); setIsFormModalOpen(true); }, []);
+    const handleAddEmployee = useCallback(() => { 
+        if (!checkIsPublicAccessAllowed()) {
+            alert('Periode pengisian data mandiri saat ini sedang ditutup atau berada di luar batas waktu yang ditentukan admin.');
+            return;
+        }
+        setEditingEmployee(null); 
+        setIsFormModalOpen(true); 
+    }, [checkIsPublicAccessAllowed]);
+    
+    const handleEditEmployee = useCallback((employee: Employee) => { 
+        if (!checkIsPublicAccessAllowed()) {
+            alert('Periode pengisian/pengeditan data mandiri saat ini sedang ditutup atau berada di luar batas waktu yang ditentukan admin.');
+            return;
+        }
+        setEditingEmployee(employee); 
+        setIsFormModalOpen(true); 
+    }, [checkIsPublicAccessAllowed]);
     
     const handleViewEmployeeDetails = useCallback((employee: Employee) => {
         setDetailedEmployee(employee);
@@ -234,6 +282,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
                     setTalentPoolAnalysis('');
                     return newEmployees;
                 });
+                setIsFormModalOpen(false); // Close modal if deleting from within the modal
             },
             title: "Konfirmasi Hapus Pegawai",
             message: "Apakah Anda yakin ingin menghapus data talenta ini? Tindakan ini tidak dapat diurungkan."
@@ -291,6 +340,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
     const handleAddJob = useCallback(() => { setEditingJob(null); setIsJobFormModalOpen(true); }, []);
     const handleEditJob = useCallback((job: CriticalJob) => { setEditingJob(job); setIsJobFormModalOpen(true); }, []);
     
+    const handleClearAllDataRequest = useCallback(() => {
+        setConfirmAction({
+            action: async () => {
+                await deleteAllEmployeesFromStorage();
+                await deleteAllCriticalJobsFromStorage();
+                setEmployees([]);
+                setCriticalJobs([]);
+                setTalentPoolAnalysis('');
+            },
+            title: "Hapus Semua Data",
+            message: "PERINGATAN BERBAHAYA: Apakah Anda yakin ingin menghapus SEMUA data Pegawai dan Jabatan Kritikal dari sistem? Tindakan ini menghapus data secara menyeluruh dan permanen."
+        });
+        setIsConfirmModalOpen(true);
+    }, []);
+    
     const handleSaveJob = useCallback(async (job: CriticalJob) => {
         const jobToSave = { ...job, id: job.id || `cj-${Date.now()}` };
         await saveCriticalJobToStorage(jobToSave);
@@ -313,6 +377,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
                     const newJobs = prev.filter(j => j.id !== id);
                     return newJobs;
                 });
+                setIsJobFormModalOpen(false); // Close modal if deleting from within modal
             },
             title: "Konfirmasi Hapus Jabatan",
             message: "Apakah Anda yakin ingin menghapus jabatan kritis ini? Ini tidak akan menghapus data pegawai terkait."
@@ -320,6 +385,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
         setIsConfirmModalOpen(true);
     }, []);
     
+    const handleSaveSettings = useCallback(async (newSettings: PublicAccessSettings) => {
+        await savePublicAccessSettings(newSettings);
+        setPublicAccessSettings(newSettings);
+    }, []);
+
     // --- AI Generation Handlers ---
     const handleGenerateDescription = useCallback(async (employee: Employee) => {
         setIsGeneratingDesc(true); setError(null);
@@ -394,7 +464,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
                         const newEmployees = json.map(row => {
                             const nip = String(row.NIP || '').trim();
                             const name = String(row['Nama Lengkap'] || 'N/A').trim();
-                            const eselon = String(row.Eselon || 'Staf').trim();
+                            const jabatan = String(row.Jabatan || '').trim();
+                            
+                            let eselon = String(row.Eselon || '').trim();
+                            if (!eselon || eselon === 'Staf') {
+                                const lowerJab = jabatan.toLowerCase();
+                                if (lowerJab.includes('kepala dinas') || lowerJab.includes('kadin') || lowerJab.includes('kepala badan') || lowerJab.includes('kaban')) {
+                                    eselon = 'JPT Pratama (Eselon II)';
+                                } else if (lowerJab.includes('kepala bidang') || lowerJab.includes('kabid') || lowerJab.includes('kepala bagian') || lowerJab.includes('kabag') || lowerJab.includes('sekretaris') || lowerJab.includes('sekdis') || lowerJab.includes('camat') || lowerJab.includes('sekcam') || lowerJab.includes('sekretaris kecamatan')) {
+                                    eselon = 'Administrator (Eselon III)';
+                                } else if (lowerJab.includes('kepala sub') || lowerJab.includes('kasub') || lowerJab.includes('kepala seksi') || lowerJab.includes('kasi') || lowerJab.includes('lurah')) {
+                                    eselon = 'Pengawas (Eselon IV)';
+                                } else if (lowerJab.includes('ahli muda')) {
+                                    eselon = 'Fungsional Ahli Muda';
+                                } else if (lowerJab.includes('ahli madya')) {
+                                    eselon = 'Fungsional Ahli Madya';
+                                } else if (lowerJab.includes('ahli pertama')) {
+                                    eselon = 'Fungsional Ahli Pertama';
+                                } else {
+                                    eselon = eselon || 'Staf';
+                                }
+                            }
+
                             const performance = Number(row.Kinerja || 75);
                             const potential = Number(row.Potensi || 75);
                             const pendidikan = String(row.Pendidikan || '').trim();
@@ -474,26 +565,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
         input.click();
     }, []);
     
-    const handleExportData = useCallback(() => {
-        if (approvedEmployees.length === 0) { alert("Tidak ada data talenta yang disetujui untuk diekspor."); return; }
+    const handleExportData = useCallback((skpdFilter: string | null) => {
+        let dataToExport = approvedEmployees;
+        if (skpdFilter) {
+            dataToExport = approvedEmployees.filter((emp) => emp.unitKerja === skpdFilter || (skpdFilter === 'Lainnya' && !skpdOptions.includes(emp.unitKerja)));
+        }
+
+        if (dataToExport.length === 0) { alert("Tidak ada data talenta yang disetujui untuk diekspor pada filter ini."); return; }
         const doc = new jsPDF({ orientation: "landscape" });
         doc.setFontSize(16);
         doc.text("Rekapitulasi Data Talenta ASN - Kabupaten Aceh Barat", 14, 15);
         doc.setFontSize(10);
         const reportDate = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
         doc.text(`Tanggal Laporan: ${reportDate}`, 14, 22);
+        if (skpdFilter) {
+            doc.text(`Filter Unit Kerja: ${skpdFilter}`, 14, 27);
+        }
         const headers = [["No", "Nama", "NIP", "Jabatan", "Unit Kerja", "Kinerja", "Potensi", "Kompetensi", "Kotak", "Kategori Kotak", "Status Suksesi"]];
-        const rows = approvedEmployees.map((emp, index) => {
+        const rows = dataToExport.map((emp, index) => {
             const { boxNumber, category } = getEmployeeBoxInfo(emp);
             return [index + 1, emp.name, emp.nip, emp.jabatan, emp.unitKerja, emp.performance, emp.potential, emp.competency ?? 'N/A', boxNumber, category, emp.successionStatus];
         });
         autoTable(doc, {
-            head: headers, body: rows, startY: 30, theme: 'grid',
+            head: headers, body: rows, startY: skpdFilter ? 32 : 30, theme: 'grid',
             styles: { fontSize: 8, cellPadding: 2 },
             headStyles: { fillColor: [44, 62, 80], textColor: [255, 255, 255], fontStyle: 'bold' },
-            columnStyles: { 0: { cellWidth: 8 }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' } }
+            columnStyles: { 0: { cellWidth: 12 }, 5: { halign: 'center' }, 6: { halign: 'center' }, 7: { halign: 'center' }, 8: { halign: 'center' } }
         });
-        doc.save(`rekapitulasi-talenta-asn-${new Date().toISOString().slice(0, 10)}.pdf`);
+        const skpdSuffix = skpdFilter ? `-${skpdFilter.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}` : '';
+        doc.save(`rekapitulasi-talenta-${new Date().toISOString().slice(0, 10)}${skpdSuffix}.pdf`);
     }, [approvedEmployees]);
 
     if (isLoadingApp) return (
@@ -522,6 +622,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
             case 'talentPool': return 'Peta Talent Pool';
             case 'criticalJobs': return 'Jabatan Kritikal & Suksesi';
             case 'submissionReview': return 'Tinjau Pengajuan Mandiri';
+            case 'activityLog': return 'Log Aktivitas';
             default: return 'Manajemen Talenta';
         }
     };
@@ -533,6 +634,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
             case 'talentPool': return 'Visualisasi dan analisis 9-Box Matrix untuk perencanaan suksesi.';
             case 'criticalJobs': return 'Rencanakan suksesi untuk posisi-posisi strategis.';
             case 'submissionReview': return `${pendingSubmissions.length} pengajuan menunggu tinjauan Anda.`;
+            case 'activityLog': return 'Melacak kapan data pegawai terakhir diperbarui.';
             default: return 'Sistem Informasi Manajemen Talenta';
         }
     };
@@ -544,9 +646,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
             <Sidebar 
                 viewMode={viewMode} 
                 setViewMode={setViewMode} 
-                onExportData={handleExportData} 
+                onExportData={() => setIsExportModalOpen(true)} 
                 onLogout={onLogout} 
                 onAddEmployee={handleAddEmployee}
+                onClearAllData={handleClearAllDataRequest}
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
                 pendingSubmissionsCount={pendingSubmissions.length}
                 isSidebarOpen={isSidebarOpen}
                 setIsSidebarOpen={setIsSidebarOpen}
@@ -580,8 +684,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
                         onSortKeyChange={setSortKey}
                         successionStatusFilter={successionStatusFilter}
                         onSuccessionStatusFilterChange={setSuccessionStatusFilter}
+                        skpdFilter={skpdFilter}
+                        onSkpdFilterChange={setSkpdFilter}
                         onImportData={handleImportData}
                         onDownloadTemplate={handleDownloadTemplate}
+                        isAdmin={isAdmin}
                     />
                     
                     <main className="mt-8">
@@ -602,12 +709,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
                         {viewMode === 'talentPool' && <TalentPoolPage employees={approvedEmployees} analysis={talentPoolAnalysis} isLoading={isGeneratingAnalysis} error={error} onShowDetails={handleViewEmployeeDetails} onEdit={handleEditEmployee} isAdmin={isAdmin} />}
                         {viewMode === 'criticalJobs' && <CriticalJobsPage criticalJobs={criticalJobs} employees={employees} onAddJob={handleAddJob} onEditJob={handleEditJob} onDeleteJob={handleDeleteJobRequest} onEditEmployee={handleEditEmployee} isAdmin={isAdmin} />}
                         {viewMode === 'submissionReview' && <SubmissionReviewPage submissions={pendingSubmissions} onApprove={handleApproveSubmission} onReject={handleRejectSubmissionRequest} onApproveAll={handleApproveAllSubmissions} onRejectAll={handleRejectAllSubmissionsRequest} />}
+                        {viewMode === 'activityLog' && <ActivityLogPage employees={employees} />}
+                        {viewMode === 'deepAnalysis' && <DeepAnalysisPage employees={approvedEmployees} criticalJobs={criticalJobs} isAdmin={isAdmin} />}
                     </main>
                 </div>
             </div>
 
-            {isFormModalOpen && <EmployeeFormModal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} onSave={handleSaveEmployee} employee={editingEmployee} />}
-            {isJobFormModalOpen && <CriticalJobFormModal isOpen={isJobFormModalOpen} onClose={() => setIsJobFormModalOpen(false)} onSave={handleSaveJob} job={editingJob} />}
+            {isFormModalOpen && <EmployeeFormModal isOpen={isFormModalOpen} onClose={() => setIsFormModalOpen(false)} onSave={handleSaveEmployee} onDelete={handleDeleteEmployeeRequest} employee={editingEmployee} allEmployees={employees} isAdmin={isAdmin} />}
+            {isJobFormModalOpen && <CriticalJobFormModal isOpen={isJobFormModalOpen} onClose={() => setIsJobFormModalOpen(false)} onSave={handleSaveJob} onDelete={handleDeleteJobRequest} job={editingJob} />}
             {isConfirmModalOpen && <ConfirmationModal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)} onConfirm={() => { if(confirmAction.action) confirmAction.action(); setIsConfirmModalOpen(false); }} title={confirmAction.title} message={confirmAction.message} />}
             {isJobDescModalOpen && <JobDescriptionModal isOpen={isJobDescModalOpen} onClose={() => setIsJobDescModalOpen(false)} title={jobDescContent.title} description={jobDescContent.content} isLoading={isGeneratingDesc} error={null} />}
             {isDevPlanModalOpen && <DevelopmentPlanModal isOpen={isDevPlanModalOpen} onClose={() => setIsDevPlanModalOpen(false)} title={devPlanContent.title} content={devPlanContent.content} isLoading={isGeneratingDevPlan} error={null} employeeName={devPlanContent.employeeName} />}
@@ -620,6 +729,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
                     onGenerateDescription={handleGenerateDescription}
                 />
             )}
+            
+            <SettingsModal 
+                isOpen={isSettingsModalOpen}
+                onClose={() => setIsSettingsModalOpen(false)}
+                settings={publicAccessSettings}
+                onSave={handleSaveSettings}
+            />
+            <ExportModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                onExport={handleExportData}
+            />
         </div>
     );
 };

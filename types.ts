@@ -1,4 +1,10 @@
 
+export interface PublicAccessSettings {
+  isOpen: boolean;
+  startTime: string; // ISO string
+  endTime: string; // ISO string
+}
+
 export type SuccessionStatus = 'Siap Sekarang' | '1-2 Tahun' | 'Potensi Masa Depan' | 'Bukan Kandidat';
 export type SubmissionType = 'Admin' | 'Mandiri';
 export type SubmissionStatus = 'Disetujui' | 'Menunggu Persetujuan';
@@ -66,6 +72,7 @@ export interface Employee {
 
   submissionType: SubmissionType;
   status: SubmissionStatus;
+  updatedAt?: string; // ISO string untuk melacak kapan data terakhir diperbarui
 }
 
 export interface CriticalJob {

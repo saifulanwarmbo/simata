@@ -1,9 +1,26 @@
 
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { Employee, EducationHistory, PerformanceHistory, CareerHistory, DevelopmentHistory } from '../types';
 import { CloseIcon, UserCircleIcon, BriefcaseIcon, StarIcon, EditIcon, AcademicCapIcon, ClipboardListIcon, SparklesIcon } from './icons';
 import MiniNineBoxGrid from './MiniNineBoxGrid';
-import { getEmployeeBoxInfo } from '../utils/talentUtils';
+import { getEmployeeBoxInfo, getRemainingRetirementTime, isOverRetirementAge, isApproachingRetirement, getTalentStatusPermenpan } from '../utils/talentUtils';
+
+const PermenpanBadge = ({ status }: { status: string }) => {
+    const styles: Record<string, string> = {
+        'Ready Now': 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
+        'Potensial': 'bg-blue-100 text-blue-800 ring-blue-600/20',
+        'Development Needed': 'bg-amber-100 text-amber-800 ring-amber-600/20',
+        'Underperformer': 'bg-red-100 text-red-800 ring-red-600/20',
+        'Belum Terpetakan': 'bg-gray-100 text-gray-800 ring-gray-600/20'
+    };
+    const style = styles[status] || styles['Belum Terpetakan'];
+    return (
+        <span className={`inline-flex items-center px-3 py-1 text-xs leading-5 font-semibold rounded-full ring-1 ring-inset ${style}`}>
+            {status}
+        </span>
+    );
+};
 
 const SuccessionStatusBadge = ({ status }: { status: Employee['successionStatus'] }) => {
     const statusMap: { [key in Employee['successionStatus']]: { color: string; } } = {
@@ -79,8 +96,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ isOpen, onClo
 
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-start pt-10" onClick={onClose}>
-            <div className="bg-gray-50 rounded-xl shadow-2xl w-full max-w-5xl m-4 flex flex-col relative" onClick={e => e.stopPropagation()}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-start pt-10" onClick={onClose}>
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="bg-gray-50 rounded-xl shadow-2xl w-full max-w-5xl m-4 flex flex-col relative" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="p-5 border-b border-gray-200 flex justify-between items-start">
                     <div className="flex items-center gap-4">
@@ -88,7 +105,13 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ isOpen, onClo
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900">{fullName}</h2>
                             <p className="text-gray-500">NIP: {employee.nip}</p>
-                            <div className="mt-2">
+                            {(employee.birthDate || employee.nip) && getRemainingRetirementTime(employee) && (
+                                <p className={`text-sm mt-1 font-medium ${isOverRetirementAge(employee) ? 'text-red-600' : isApproachingRetirement(employee) ? 'text-amber-600' : 'text-gray-500'}`}>
+                                    {getRemainingRetirementTime(employee)}
+                                </p>
+                            )}
+                            <div className="mt-2 flex gap-2">
+                                <PermenpanBadge status={getTalentStatusPermenpan(boxNumber)} />
                                 <SuccessionStatusBadge status={employee.successionStatus} />
                             </div>
                         </div>
@@ -182,8 +205,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ isOpen, onClo
                         Tutup
                     </button>
                 </div>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

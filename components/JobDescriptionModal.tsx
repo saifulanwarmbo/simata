@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { motion } from 'motion/react';
 import { CloseIcon, LoadingIcon, SparklesIcon } from './icons';
 
 interface JobDescriptionModalProps {
@@ -15,8 +16,8 @@ const JobDescriptionModal: React.FC<JobDescriptionModalProps> = ({ isOpen, onClo
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl m-4 flex flex-col" onClick={e => e.stopPropagation()}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-40 flex justify-center items-center" onClick={onClose}>
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="bg-white rounded-xl shadow-2xl w-full max-w-2xl m-4 flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b border-gray-200 flex justify-between items-center">
                     <div className="flex items-center">
                         <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-lg bg-purple-100">
@@ -48,8 +49,8 @@ const JobDescriptionModal: React.FC<JobDescriptionModalProps> = ({ isOpen, onClo
                         Tutup
                     </button>
                 </div>
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 

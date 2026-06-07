@@ -60,11 +60,16 @@ service cloud.firestore {
     }
 
     match /employees/{employeeId} {
-      allow create, read: if true;
-      allow update, delete: if isAdmin();
+      allow create, update, read: if true;
+      allow delete: if isAdmin();
     }
 
     match /criticalJobs/{jobId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }

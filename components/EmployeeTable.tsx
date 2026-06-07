@@ -1,7 +1,7 @@
 import React from 'react';
 import { Employee, SuccessionStatus, SubmissionType } from '../types';
 import { EditIcon, DeleteIcon, SparklesIcon, AcademicCapIcon, WarningIcon } from './icons';
-import { getPerformanceScale, getPotentialScale, isApproachingRetirement, isOverRetirementAge, isEducationBelowStandard } from '../utils/talentUtils';
+import { getPerformanceScale, getPotentialScale, isApproachingRetirement, isOverRetirementAge, isEducationBelowStandard, getRemainingRetirementTime, getTalentStatusPermenpan, getEmployeeBoxInfo } from '../utils/talentUtils';
 
 interface EmployeeTableProps {
     employees: Employee[];
@@ -62,6 +62,30 @@ const SubmissionTypeBadge = ({ type }: { type: SubmissionType }) => {
     return <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full ring-1 ring-inset ${badgeStyle}`}>{type}</span>;
 }
 
+const PermenpanBadge = ({ status }: { status: string }) => {
+    const styles: Record<string, string> = {
+        'Ready Now': 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
+        'Potensial': 'bg-blue-100 text-blue-800 ring-blue-600/20',
+        'Development Needed': 'bg-amber-100 text-amber-800 ring-amber-600/20',
+        'Underperformer': 'bg-red-100 text-red-800 ring-red-600/20',
+        'Belum Terpetakan': 'bg-gray-100 text-gray-800 ring-gray-600/20'
+    };
+    const style = styles[status] || styles['Belum Terpetakan'];
+    return (
+        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full ring-1 ring-inset ${style}`}>
+            {status}
+        </span>
+    );
+};
+
+const getRowColorClasses = (eselon: string) => {
+    if (!eselon) return 'bg-white hover:bg-gray-50';
+    if (eselon.includes('JPT')) return 'bg-purple-50/60 hover:bg-purple-100/70';
+    if (eselon.includes('Administrator')) return 'bg-blue-50/60 hover:bg-blue-100/70';
+    if (eselon.includes('Pengawas')) return 'bg-emerald-50/60 hover:bg-emerald-100/70';
+    if (eselon.includes('Fungsional')) return 'bg-orange-50/40 hover:bg-orange-100/50';
+    return 'bg-white hover:bg-gray-50';
+};
 
 const EmployeeTable: React.FC<EmployeeTableProps> = ({ employees, onEdit, onDelete, onGenerateDescription, onGenerateDevelopmentPlan, onShowDetails, isAdmin }) => {
     if (employees.length === 0) {
@@ -69,32 +93,43 @@ const EmployeeTable: React.FC<EmployeeTableProps> = ({ employees, onEdit, onDele
     }
 
     return (
-        <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pegawai</th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Jabatan & SKPD</th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Keterampilan</th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Penilaian & Kotak Talent</th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status Suksesi</th>
-                        <th scope="col" className="relative px-6 py-3">
-                            <span className="sr-only">Actions</span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {employees.map((employee) => (
-                        <tr key={employee.id} className="hover:bg-gray-50 transition-colors duration-200">
-                            <td className="px-6 py-4 whitespace-nowrap">
+        <div className="flex flex-col">
+            <div className="px-6 py-3 bg-white border-b border-gray-200 flex flex-wrap items-center gap-4 text-xs">
+                <span className="font-semibold text-gray-600">Legenda Jenjang (Eselon):</span>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-200 border border-purple-300"></div><span>JPT (Eselon I & II)</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-200 border border-blue-300"></div><span>Administrator (Eselon III)</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-200 border border-emerald-300"></div><span>Pengawas (Eselon IV)</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-100 border border-orange-200"></div><span>Fungsional</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-gray-100 border border-gray-200"></div><span>Pelaksana / Staf</span></div>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pegawai</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Jabatan & SKPD</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sumber</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Keterampilan</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Penilaian & Kotak Talent</th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status Talenta<br/><span className="text-[10px] lowercase font-normal">(PermenPANRB 3/2020)</span></th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Target Suksesi</th>
+                            <th scope="col" className="relative px-6 py-3">
+                                <span className="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {employees.map((employee) => (
+                            <tr key={employee.id} className={`transition-colors duration-200 ${getRowColorClasses(employee.eselon)}`}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+
                                 <div className="flex items-center">
                                     <div className="flex-shrink-0 h-11 w-11">
                                         <img className="h-11 w-11 rounded-full object-cover ring-2 ring-white" src={employee.avatar} alt={employee.name} />
                                     </div>
                                     <div className="ml-4">
                                         <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                                            <button onClick={() => onShowDetails(employee)} className="text-left hover:text-indigo-600 focus:outline-none focus:underline transition-colors" title={`Lihat detail untuk ${employee.name}`}>
+                                            <button onClick={() => isAdmin ? onEdit(employee) : onShowDetails(employee)} className="text-left hover:text-indigo-600 focus:outline-none focus:underline transition-colors" title={isAdmin ? `Edit data ${employee.name}` : `Lihat detail untuk ${employee.name}`}>
                                                 <span>{employee.name}</span>
                                             </button>
                                             {isOverRetirementAge(employee) ? (
@@ -112,6 +147,11 @@ const EmployeeTable: React.FC<EmployeeTableProps> = ({ employees, onEdit, onDele
                                             ) : null}
                                         </div>
                                         <div className="text-sm text-gray-500">NIP: {employee.nip}</div>
+                                        {(employee.birthDate || employee.nip) && getRemainingRetirementTime(employee) && (
+                                            <div className={`text-xs mt-0.5 ${isOverRetirementAge(employee) ? 'text-red-600 font-medium' : isApproachingRetirement(employee) ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+                                                {getRemainingRetirementTime(employee)}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </td>
@@ -145,8 +185,9 @@ const EmployeeTable: React.FC<EmployeeTableProps> = ({ employees, onEdit, onDele
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <SuccessionStatusBadge status={employee.successionStatus} />
+                            <td className="px-6 py-4 whitespace-nowrap flex flex-col gap-2 justify-center h-full">
+                                <div><PermenpanBadge status={getTalentStatusPermenpan(getEmployeeBoxInfo(employee).boxNumber)} /></div>
+                                <div><SuccessionStatusBadge status={employee.successionStatus} /></div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 {isAdmin && (
@@ -170,6 +211,7 @@ const EmployeeTable: React.FC<EmployeeTableProps> = ({ employees, onEdit, onDele
                     ))}
                 </tbody>
             </table>
+        </div>
         </div>
     );
 };
