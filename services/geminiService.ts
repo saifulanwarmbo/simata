@@ -8,7 +8,7 @@ import { Employee, CriticalJob } from "../types";
  * This ensures the API key remains secure on the server and bypasses client-side RPC errors.
  */
 
-async function callBackend(endpoint: string, body: any): Promise<string> {
+async function callBackend(endpoint: string, body: Record<string, unknown>): Promise<string> {
     try {
         const response = await fetch(`/api/generate/${endpoint}`, {
             method: 'POST',
@@ -23,7 +23,7 @@ async function callBackend(endpoint: string, body: any): Promise<string> {
 
         const data = await response.json();
         return data.text || '';
-    } catch (error: any) {
+    } catch (error) {
         console.error(`Error calling Gemini backend (${endpoint}):`, error);
         throw error;
     }
@@ -32,8 +32,8 @@ async function callBackend(endpoint: string, body: any): Promise<string> {
 export async function generateJobDescription(title: string, unitKerja: string): Promise<string> {
     try {
         return await callBackend('job-description', { title, unitKerja });
-    } catch (error: any) {
-        return `Gagal menghasilkan konten: \${error.message}`;
+    } catch (error) {
+        return `Gagal menghasilkan konten: ${(error as Error).message}`;
     }
 }
 
@@ -41,8 +41,8 @@ export async function generateDevelopmentPlan(employee: Employee): Promise<strin
     try {
         const minimalEmployee = { ...employee, avatar: undefined };
         return await callBackend('development-plan', { employee: minimalEmployee });
-    } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Rencana</h3><p>Terjadi kesalahan: ${error.message}</p>`;
+    } catch (error) {
+        return `<h3>Gagal Menghasilkan Rencana</h3><p>Terjadi kesalahan: ${(error as Error).message}</p>`;
     }
 }
 
@@ -50,8 +50,8 @@ export async function generateTalentPoolAnalysis(employees: Employee[]): Promise
     try {
         const minimalEmployees = employees.map(e => ({ ...e, avatar: undefined }));
         return await callBackend('talent-pool-analysis', { employees: minimalEmployees });
-    } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: ${error.message}</p>`;
+    } catch (error) {
+        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: ${(error as Error).message}</p>`;
     }
 }
 
@@ -74,9 +74,9 @@ export async function generateEmployeeData(jabatan: string, unitKerja: string): 
             generatedData.skills = generatedData.skills.split(',').map((s: string) => s.trim());
         }
         return generatedData;
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error generating employee data:", error);
-        throw new Error(`Gagal menghasilkan data: \${error.message}`);
+        throw new Error(`Gagal menghasilkan data: ${(error as Error).message}`);
     }
 }
 
@@ -84,8 +84,8 @@ export async function generateSuccessionInsight(job: CriticalJob, candidates: Em
     try {
         const minimalCandidates = candidates.map(e => ({ ...e, avatar: undefined }));
         return await callBackend('succession-insight', { job, candidates: minimalCandidates });
-    } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: ${error.message}</p>`;
+    } catch (error) {
+        return `<h3>Gagal Menghasilkan Analisis</h3><p>Terjadi kesalahan: ${(error as Error).message}</p>`;
     }
 }
 
@@ -108,7 +108,7 @@ export async function generateCandidateMatch(job: CriticalJob, candidates: Emplo
 
         const data = await response.json();
         return data.matches;
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error generating candidate match:", error);
         throw new Error("Gagal melakukan analisis pencocokan kandidat.");
     }
@@ -118,7 +118,7 @@ export async function generateDeepSuccessionAnalysis(employees: Employee[], jobs
     try {
         const minimalEmployees = employees.map(e => ({ ...e, avatar: undefined }));
         return await callBackend('deep-succession-analysis', { employees: minimalEmployees, jobs });
-    } catch (error: any) {
-        return `<h3>Gagal Menghasilkan Laporan</h3><p>Terjadi kesalahan: ${error.message}</p>`;
+    } catch (error) {
+        return `<h3>Gagal Menghasilkan Laporan</h3><p>Terjadi kesalahan: ${(error as Error).message}</p>`;
     }
 }

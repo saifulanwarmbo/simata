@@ -53,7 +53,7 @@ const DetailCard: React.FC<{ icon: React.ReactNode; title: string; children: Rea
     </div>
 );
 
-const HistoryTable: React.FC<{ data: any[]; columns: { key: string; label: string }[] }> = ({ data, columns }) => {
+const HistoryTable: React.FC<{ data: Record<string, unknown>[]; columns: { key: string; label: string }[] }> = ({ data, columns }) => {
     if (!data || data.length === 0) {
         return <p className="text-center text-gray-500 py-4">Tidak ada data riwayat.</p>;
     }

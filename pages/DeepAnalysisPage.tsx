@@ -22,8 +22,8 @@ const DeepAnalysisPage: React.FC<DeepAnalysisPageProps> = ({ employees, critical
         try {
             const html = await generateDeepSuccessionAnalysis(employees, criticalJobs);
             setAnalysisHtml(html);
-        } catch (err: any) {
-            setError(err.message || 'Gagal menghasilkan laporan');
+        } catch (err) {
+            setError((err as Error).message || 'Gagal menghasilkan laporan');
         } finally {
             setIsGenerating(false);
         }

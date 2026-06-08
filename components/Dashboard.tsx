@@ -187,7 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, isAdmin, onGoToLogin })
 
         const [key, direction] = sortKey.split('-');
         return processedEmployees.sort((a, b) => {
-            let valA: any, valB: any;
+            let valA: string | number | undefined, valB: string | number | undefined;
             let sortDirection = direction; // Use a mutable direction for eselon case
 
             switch (key) {

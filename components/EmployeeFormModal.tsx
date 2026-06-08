@@ -48,7 +48,7 @@ const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({ isOpen, onClose, 
 
     useEffect(() => {
         if (isOpen) {
-            const ensureId = (item: any) => ({ ...item, id: item.id || crypto.randomUUID() });
+            const ensureId = (item: { id?: string; [key: string]: unknown }) => ({ ...item, id: item.id || crypto.randomUUID() });
 
             if (employee) {
                 setFormData({

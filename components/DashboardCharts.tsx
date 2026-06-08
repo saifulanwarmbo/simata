@@ -99,7 +99,7 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({ employees }) => {
 
     const quadrantData = Object.values(quadrantDataMap).filter(d => d.count > 0);
 
-    const CustomTooltip = ({ active, payload }: any) => {
+    const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: Record<string, unknown> }> }) => {
         if (active && payload && payload.length) {
             const data = payload[0].payload;
             return (
