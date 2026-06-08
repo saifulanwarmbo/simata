@@ -321,7 +321,7 @@ export const findPotentialCandidates = (
         )
         .map(emp => {
             let score = 0;
-            let reasons: string[] = [];
+            const reasons: string[] = [];
 
             // Eselon Match: Must be same level or promotable (up to 2 levels below)
             const empEselonRank = getEselonRank(emp.eselon);
@@ -408,9 +408,9 @@ export const validateNIPValidation = (nip: string): { isValid: boolean; message:
     }
 
     // 2. Validate Birth Date
-    let birthYear = parseInt(yearStr, 10);
-    let birthMonth = parseInt(monthStr, 10);
-    let birthDay = parseInt(dayStr, 10);
+    const birthYear = parseInt(yearStr, 10);
+    const birthMonth = parseInt(monthStr, 10);
+    const birthDay = parseInt(dayStr, 10);
 
     // Female correction for older formats or just typical BKN encoding 
     // Technically standard NIP doesn't add +40 to day for women anymore in some regs, but historically it did or does for NIK. Wait, actually NIP doesn't add 40. But let's check what `getBirthDateFromNIP` did.
@@ -431,8 +431,8 @@ export const validateNIPValidation = (nip: string): { isValid: boolean; message:
     }
 
     // 3. Validate Appointment Date
-    let appYear = parseInt(appYearStr, 10);
-    let appMonth = parseInt(appMonthStr, 10);
+    const appYear = parseInt(appYearStr, 10);
+    const appMonth = parseInt(appMonthStr, 10);
 
     if (appYear < birthYear + 15) {
         return { isValid: false, message: 'Tahun pengangkatan terlalu dekat/sebelum tahun lahir (minimal usia 15 tahun).' };

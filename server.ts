@@ -373,8 +373,8 @@ async function startServer() {
         }
 
         // Map to 9-box (simplified mapping based on scores 0-100)
-        let perfCategory = e.performance >= 90 ? 'High' : (e.performance >= 70 ? 'Meets' : 'Below');
-        let potCategory = e.potential >= 90 ? 'High' : (e.potential >= 70 ? 'Meets' : 'Below');
+        const perfCategory = e.performance >= 90 ? 'High' : (e.performance >= 70 ? 'Meets' : 'Below');
+        const potCategory = e.potential >= 90 ? 'High' : (e.potential >= 70 ? 'Meets' : 'Below');
 
         if (perfCategory === 'High' && potCategory === 'High') nineBoxDistribution['9 (Top Talent)']++;
         else if (perfCategory === 'Meets' && potCategory === 'High') nineBoxDistribution['8 (High Potential)']++;

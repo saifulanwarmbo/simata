@@ -76,7 +76,7 @@ export async function generateEmployeeData(jabatan: string, unitKerja: string): 
         return generatedData;
     } catch (error) {
         console.error("Error generating employee data:", error);
-        throw new Error(`Gagal menghasilkan data: ${(error as Error).message}`);
+        throw new Error(`Gagal menghasilkan data: ${(error as Error).message}`, { cause: error });
     }
 }
 
@@ -110,7 +110,7 @@ export async function generateCandidateMatch(job: CriticalJob, candidates: Emplo
         return data.matches;
     } catch (error) {
         console.error("Error generating candidate match:", error);
-        throw new Error("Gagal melakukan analisis pencocokan kandidat.");
+        throw new Error("Gagal melakukan analisis pencocokan kandidat.", { cause: error });
     }
 }
 

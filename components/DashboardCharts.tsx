@@ -75,7 +75,7 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({ employees }) => {
         .sort((a, b) => orderMK.indexOf(a.name) - orderMK.indexOf(b.name));
 
     // 4. 9-Box Scatter Data
-    let quadrantDataMap: Record<number, { performance: number, potential: number, count: number, boxNumber: number }> = {};
+    const quadrantDataMap: Record<number, { performance: number, potential: number, count: number, boxNumber: number }> = {};
     for (let i = 1; i <= 9; i++) {
         let perf = 1, pot = 1;
         if (i===9) { perf=3; pot=3; }

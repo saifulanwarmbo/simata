@@ -42,7 +42,7 @@ const newHandleGeminiRequest = `
   };
 `;
 
-content = content.replace(/  const handleGeminiRequest = async \(res: any, model: string, prompt: string, config: any\) => \{[\s\S]*?  \};/g, newHandleGeminiRequest);
+content = content.replace(/ {2}const handleGeminiRequest = async \(res: any, model: string, prompt: string, config: any\) => \{[\s\S]*? {2}\};/g, newHandleGeminiRequest);
 
 // Also need to fix the custom generateContent calls for match-candidates, succession-insight, and employee-data
 // Match candidates:
